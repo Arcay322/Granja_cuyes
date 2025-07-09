@@ -81,7 +81,7 @@ Si prefieres usar Render para la base de datos:
 
 ### Configuración de Build y Start:
 - **Build Command**: `npm install && npm run build`
-- **Start Command**: `npm start`
+- **Start Command**: `npm start` ⚠️ **¡MUY IMPORTANTE: escribir exactamente "npm start" - NO "npm star"!**
 
 ### Variables de Entorno:
 Haz clic en "Advanced" y agrega estas variables de entorno:
@@ -234,6 +234,10 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
 ### Build Fallido:
 - Revisa los logs en la pestaña "Events"
 - Verifica que todas las dependencias estén en `package.json`
+
+### Error "npm star" o "npm help star":
+- **Problema**: Render ejecuta `npm star` en lugar de `npm start`
+- **Solución**: Ve a Settings > Build & Deploy y corrige el "Start Command" a `npm start`
 
 ### Problemas Específicos de Supabase:
 - **Error de conexión**: Verifica que tu proyecto Supabase esté activo y no pausado

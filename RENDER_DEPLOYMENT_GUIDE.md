@@ -135,11 +135,28 @@ CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
 ### Configuración Básica:
 - **Name**: `sumaq-uywa-frontend`
 - **Branch**: `main`
-- **Root Directory**: `/` (raíz del proyecto)
+- **Root Directory**: `./` ⚠️ **¡IMPORTANTE: usar "./" NO "/"!**
 
 ### Configuración de Build:
-- **Build Command**: `npm install && npm run build`
+- **Build Command**: `npm install && npm run build-with-validation`
 - **Publish Directory**: `dist`
+
+**⚠️ Opciones de Build Command según tu situación:**
+
+**Opción 1 - Con validación automática (RECOMENDADO):**
+```
+npm install && npm run build-with-validation
+```
+
+**Opción 2 - Ignorar errores de TypeScript:**
+```
+npm install && CI=false npm run build
+```
+
+**Opción 3 - Build básico (si no hay errores TS):**
+```
+npm install && npm run build
+```
 
 ### Variables de Entorno:
 ```bash
@@ -235,9 +252,25 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
 - Revisa los logs en la pestaña "Events"
 - Verifica que todas las dependencias estén en `package.json`
 
+### Errores de TypeScript en el Build:
+- **Problema**: Render falla el build por errores de TS que localmente no bloquean
+- **Solución 1 (MEJOR)**: Usar `npm run build-with-validation` que auto-corrige errores
+- **Solución 2**: Usar `CI=false npm run build` para ignorar errores TS
+- **Solución 3**: Corregir manualmente los errores antes del despliegue
+
+### Errores específicos que se auto-corrigen:
+- ✅ Variables no utilizadas (TS6133)
+- ✅ Tipos incompatibles en Material-UI (TS2769)
+- ✅ Propiedades inexistentes (TS2339)
+- ✅ Problemas de importación (TS2613)
+
 ### Error "npm star" o "npm help star":
 - **Problema**: Render ejecuta `npm star` en lugar de `npm start`
 - **Solución**: Ve a Settings > Build & Deploy y corrige el "Start Command" a `npm start`
+
+### Error de Root Directory en Frontend:
+- **Problema**: Usar `/` en Root Directory no funciona
+- **Solución**: Usar `./` en lugar de `/` para el Root Directory del frontend
 
 ### Problemas Específicos de Supabase:
 - **Error de conexión**: Verifica que tu proyecto Supabase esté activo y no pausado

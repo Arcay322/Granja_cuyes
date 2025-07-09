@@ -25,13 +25,22 @@ Esta guía te llevará paso a paso para desplegar tu aplicación SUMAQ UYWA en R
 
 Si ya tienes una base de datos en Supabase:
 
+**Método 1 - Usar tu .env existente (MÁS FÁCIL):**
+1. Abre tu archivo `.env` local
+2. Copia el valor de `DATABASE_URL` que ya tienes
+3. **¡ESO ES TODO!** Esa misma URL funciona en Render
+
+**Método 2 - Obtener nueva URL desde Supabase:**
 1. Ve a tu proyecto en [supabase.com](https://supabase.com)
 2. Ve a **Settings > Database**
 3. Copia la **Connection String** (URI format):
    ```
    postgresql://postgres:[password]@[host]:[port]/postgres
    ```
+
 4. **¡IMPORTANTE!** Guarda esta URL, la necesitarás para el backend
+
+**💡 Tip**: La URL que tienes en tu `.env` local es la misma que necesitas en Render. Supabase usa URLs públicas que funcionan desde cualquier lugar.
 
 ### Opción B: Crear Nueva Base de Datos en Render
 
@@ -81,7 +90,16 @@ Haz clic en "Advanced" y agrega estas variables de entorno:
 ```bash
 NODE_ENV=production
 PORT=10000
-DATABASE_URL=postgresql://postgres:[tu-password]@[tu-host]:[puerto]/postgres
+DATABASE_URL=tu_url_de_supabase_del_archivo_.env
+JWT_SECRET=tu_jwt_secret_muy_seguro_aqui_123456789
+CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
+```
+
+**Ejemplo real de Supabase:**
+```bash
+NODE_ENV=production
+PORT=10000
+DATABASE_URL=postgresql://postgres.xxxxxxxxxxxxx:tu_password@aws-0-us-east-1.pooler.supabase.com:5432/postgres
 JWT_SECRET=tu_jwt_secret_muy_seguro_aqui_123456789
 CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
 ```
@@ -96,9 +114,9 @@ CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
 ```
 
 **⚠️ Importante**: 
-- **Para Supabase**: Reemplaza `[tu-password]`, `[tu-host]` y `[puerto]` con los datos de tu conexión Supabase
+- **Para Supabase**: Usa la misma `DATABASE_URL` que tienes en tu archivo `.env` local - ¡funciona perfectamente!
 - **Para Render**: Reemplaza con la Internal Database URL de tu PostgreSQL en Render
-- Cambia `JWT_SECRET` por algo más seguro
+- Cambia `JWT_SECRET` por algo más seguro (puedes usar el mismo del `.env` local)
 - La `CORS_ORIGIN` la actualizarás después con la URL real del frontend
 
 ### Plan:

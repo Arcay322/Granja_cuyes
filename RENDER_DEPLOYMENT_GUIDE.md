@@ -19,7 +19,23 @@ Esta guía te llevará paso a paso para desplegar tu aplicación SUMAQ UYWA en R
 3. Conecta con tu cuenta de GitHub
 4. Autoriza el acceso a tus repositorios
 
-## 🗄️ Paso 2: Crear la Base de Datos PostgreSQL
+## 🗄️ Paso 2: Configurar la Base de Datos
+
+### Opción A: Usar tu Base de Datos Supabase Existente ✅ (Recomendado si ya la tienes)
+
+Si ya tienes una base de datos en Supabase:
+
+1. Ve a tu proyecto en [supabase.com](https://supabase.com)
+2. Ve a **Settings > Database**
+3. Copia la **Connection String** (URI format):
+   ```
+   postgresql://postgres:[password]@[host]:[port]/postgres
+   ```
+4. **¡IMPORTANTE!** Guarda esta URL, la necesitarás para el backend
+
+### Opción B: Crear Nueva Base de Datos en Render
+
+Si prefieres usar Render para la base de datos:
 
 1. En el dashboard de Render, haz clic en **"New +"**
 2. Selecciona **"PostgreSQL"**
@@ -61,16 +77,27 @@ Esta guía te llevará paso a paso para desplegar tu aplicación SUMAQ UYWA en R
 ### Variables de Entorno:
 Haz clic en "Advanced" y agrega estas variables de entorno:
 
+**Si usas Supabase (tu caso):**
 ```bash
 NODE_ENV=production
 PORT=10000
-DATABASE_URL=[Pega aquí la Internal Database URL de tu PostgreSQL]
+DATABASE_URL=postgresql://postgres:[tu-password]@[tu-host]:[puerto]/postgres
+JWT_SECRET=tu_jwt_secret_muy_seguro_aqui_123456789
+CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
+```
+
+**Si usas Render PostgreSQL:**
+```bash
+NODE_ENV=production
+PORT=10000
+DATABASE_URL=[Internal Database URL de Render]
 JWT_SECRET=tu_jwt_secret_muy_seguro_aqui_123456789
 CORS_ORIGIN=https://sumaq-uywa-frontend.onrender.com
 ```
 
 **⚠️ Importante**: 
-- Reemplaza `[Pega aquí la Internal Database URL...]` con la URL real de tu base de datos
+- **Para Supabase**: Reemplaza `[tu-password]`, `[tu-host]` y `[puerto]` con los datos de tu conexión Supabase
+- **Para Render**: Reemplaza con la Internal Database URL de tu PostgreSQL en Render
 - Cambia `JWT_SECRET` por algo más seguro
 - La `CORS_ORIGIN` la actualizarás después con la URL real del frontend
 
@@ -127,6 +154,7 @@ Una vez que ambos servicios estén desplegados:
 
 ## 🗃️ Paso 6: Ejecutar Migraciones de Base de Datos
 
+### Si usas Supabase (tu caso):
 1. Ve a tu servicio backend en Render
 2. Ve a la pestaña "Shell"
 3. Ejecuta estos comandos:
@@ -135,8 +163,15 @@ Una vez que ambos servicios estén desplegados:
    ```
    
    Esto ejecutará:
-   - `npx prisma migrate deploy` (aplica las migraciones)
-   - `npm run seed` (inserta datos iniciales)
+   - `npx prisma migrate deploy` (aplica las migraciones a Supabase)
+   - `npm run seed` (inserta datos iniciales en Supabase)
+
+**Nota**: Las migraciones se aplicarán directamente a tu base de datos Supabase usando la `DATABASE_URL` que configuraste.
+
+### Si usas Render PostgreSQL:
+1. Ve a tu servicio backend en Render
+2. Ve a la pestaña "Shell"
+3. Ejecuta los mismos comandos mencionados arriba
 
 ## ✅ Paso 7: Verificar el Despliegue
 
@@ -167,8 +202,8 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
 ## 🚨 Solución de Problemas Comunes
 
 ### Error de Conexión a Base de Datos:
-- Verifica que la `DATABASE_URL` esté correcta
-- Asegúrate de usar la "Internal Database URL", no la externa
+- **Para Supabase**: Verifica que la `DATABASE_URL` tenga el formato correcto y la contraseña sea correcta
+- **Para Render**: Verifica que la `DATABASE_URL` esté correcta y uses la "Internal Database URL"
 
 ### Error de CORS:
 - Verifica que `CORS_ORIGIN` en el backend apunte a la URL correcta del frontend
@@ -181,6 +216,11 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
 ### Build Fallido:
 - Revisa los logs en la pestaña "Events"
 - Verifica que todas las dependencias estén en `package.json`
+
+### Problemas Específicos de Supabase:
+- **Error de conexión**: Verifica que tu proyecto Supabase esté activo y no pausado
+- **Error de autenticación**: Asegúrate de usar la contraseña correcta de la base de datos
+- **Error de SSL**: Supabase requiere SSL, asegúrate de que tu `DATABASE_URL` incluya `?sslmode=require` al final si es necesario
 
 ## 🔄 Actualizaciones Futuras
 

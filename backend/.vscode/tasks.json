@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "setup-db",
+      "detail": "Run this script to create the default proveedor",
+      "command": "ts-node src/scripts/createDefaultProveedor.ts",
+      "type": "shell",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

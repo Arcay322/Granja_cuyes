@@ -1,4 +1,4 @@
-# 📊 CuyesGPT - Resumen Ejecutivo del Proyecto
+# 📊 SUMAQ UYWA - Resumen Ejecutivo del Proyecto
 
 ## 🎯 Estado del Proyecto: ✅ LISTO PARA GITHUB
 
@@ -211,7 +211,7 @@ backend/
 
 ## 🎉 Conclusión
 
-**CuyesGPT** es un proyecto completo, funcional y listo para producción. Con **39,778 líneas de código** distribuidas en **197 archivos**, representa una solución integral para la gestión de granjas de cuyes.
+**SUMAQ UYWA** es un proyecto completo, funcional y listo para producción. Con **39,778 líneas de código** distribuidas en **197 archivos**, representa una solución integral para la gestión de granjas de cuyes.
 
 El proyecto está **100% preparado** para ser subido a GitHub y comenzar su vida como proyecto open source o comercial.
 

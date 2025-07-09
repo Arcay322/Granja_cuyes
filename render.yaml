@@ -1,0 +1,46 @@
+# Render.yaml - Configuración para despliegue automatizado de SUMAQ UYWA
+services:
+  # Backend API Service
+  - type: web
+    name: sumaq-uywa-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sumaq-uywa-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://sumaq-uywa-frontend.onrender.com
+    # Ejecutar migraciones después del despliegue
+    preDeployCommand: npx prisma migrate deploy
+
+  # Frontend Static Site
+  - type: web
+    name: sumaq-uywa-frontend
+    runtime: static
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        value: https://sumaq-uywa-backend.onrender.com/api
+
+# Base de datos PostgreSQL
+databases:
+  - name: sumaq-uywa-db
+    plan: free
+    databaseName: sumaq_uywa
+    user: sumaq_uywa_user

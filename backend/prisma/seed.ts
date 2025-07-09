@@ -352,10 +352,10 @@ async function main() {
 
   // Crear un usuario administrador
   const user = await prisma.user.upsert({
-    where: { email: 'admin@cuyesgpt.com' },
+    where: { email: 'admin@sumaquywa.com' },
     update: {},
     create: {
-      email: 'admin@cuyesgpt.com',
+      email: 'admin@sumaquywa.com',
       password: '$2a$10$aMmfKfDdDa3hUgI8lbxD5OQ7vzJGUYVsJ3XQo6e83XGUxl8Dg1aZG', // contraseña: admin123
     },
   });

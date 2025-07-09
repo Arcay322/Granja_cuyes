@@ -1,4 +1,4 @@
-# CuyesGPT - Sistema de Gestión Integral de Granja de Cuyes 🐹
+# SUMAQ UYWA - Sistema de Gestión Integral de Granja de Cuyes 🐹
 
 Una aplicación web fullstack moderna para la administración completa de granjas de cuyes, con herramientas para gestión de inventario, alimentación, salud, ventas, gastos y reproducción.
 
@@ -21,7 +21,7 @@ Una aplicación web fullstack moderna para la administración completa de granja
 ## 📁 Estructura del Proyecto
 
 ```
-cuyesgpt/
+sumaq-uywa/
 ├── src/                      # Frontend React
 │   ├── components/           # Componentes reutilizables
 │   ├── pages/               # Páginas principales
@@ -49,8 +49,8 @@ cuyesgpt/
 
 ### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-usuario/cuyesgpt.git
-cd cuyesgpt
+git clone https://github.com/Arcay322/Granja_cuyes.git
+cd sumaq-uywa
 ```
 
 ### 2. Configurar el Frontend
@@ -208,7 +208,50 @@ JWT_SECRET="tu_clave_secreta_aqui"
 NODE_ENV=development
 ```
 
-## 🐛 Reportar Problemas
+## � Despliegue en Producción
+
+### Render.com (Recomendado)
+
+Este proyecto está configurado para despliegue automático en Render. Sigue estos pasos:
+
+1. **Preparación**:
+   ```bash
+   # En Windows PowerShell
+   .\prepare-for-render.ps1
+   
+   # O en bash/Linux/Mac
+   ./prepare-for-render.sh
+   ```
+
+2. **Subir a GitHub** (si no lo has hecho):
+   ```bash
+   git add .
+   git commit -m "Preparado para despliegue en Render"
+   git push origin main
+   ```
+
+3. **Desplegar en Render**:
+   - Lee la guía completa en [`RENDER_DEPLOYMENT_GUIDE.md`](RENDER_DEPLOYMENT_GUIDE.md)
+   - El archivo `render.yaml` automatiza todo el proceso
+   - Incluye backend, frontend y base de datos PostgreSQL
+
+### Características del Despliegue:
+- ✅ **Base de datos PostgreSQL** automática
+- ✅ **Migraciones automáticas** de Prisma
+- ✅ **Variables de entorno** preconfiguradas
+- ✅ **CORS** configurado para producción
+- ✅ **Health checks** incluidos
+- ✅ **SSL/HTTPS** automático
+- ✅ **Auto-deploy** desde GitHub
+
+### Otros Servicios de Hosting:
+- Vercel (Frontend) + Railway (Backend + DB)
+- Netlify (Frontend) + Heroku (Backend + DB)
+- AWS, Digital Ocean, etc.
+
+📖 **Para instrucciones detalladas, consulta [`RENDER_DEPLOYMENT_GUIDE.md`](RENDER_DEPLOYMENT_GUIDE.md)**
+
+## �🐛 Reportar Problemas
 
 Si encuentras algún problema, por favor crea un issue en GitHub describiendo:
 - Pasos para reproducir el problema
@@ -222,7 +265,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 ## 👨‍💻 Autor
 
-**Tu Nombre** - [GitHub](https://github.com/tu-usuario)
+**Arcay322** - [GitHub](https://github.com/Arcay322)
 
 ---
 

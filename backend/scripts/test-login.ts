@@ -6,7 +6,7 @@ async function testLogin() {
     
     // Intentar login con las cuentas existentes
     const cuentas = [
-      { email: 'admin@cuyesgpt.com', password: 'admin123' },
+      { email: 'admin@sumaquywa.com', password: 'admin123' },
       { email: 'arcay325@gmail.com', password: 'password123' },
       { email: '99866114a@gmail.com', password: 'password123' }
     ];

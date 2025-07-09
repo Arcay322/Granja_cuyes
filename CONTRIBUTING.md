@@ -1,11 +1,11 @@
-# CuyesGPT - Contribución
+# SUMAQ UYWA - Contribución
 
-¡Gracias por tu interés en contribuir a CuyesGPT! 🎉
+¡Gracias por tu interés en contribuir a SUMAQ UYWA! 🎉
 
 ## 🤝 Cómo Contribuir
 
 ### Reportar Problemas
-- Usa la sección de [Issues](https://github.com/tu-usuario/cuyesgpt/issues)
+- Usa la sección de [Issues](https://github.com/Arcay322/Granja_cuyes/issues)
 - Describe claramente el problema
 - Incluye pasos para reproducirlo
 - Adjunta screenshots si es necesario

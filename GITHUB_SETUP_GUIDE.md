@@ -1,8 +1,8 @@
-# 🚀 Guía para Subir CuyesGPT a GitHub
+# 🚀 Guía para Subir SUMAQ UYWA a GitHub
 
 ## ✅ Preparación Completada
 
-El proyecto **CuyesGPT** está completamente preparado para ser subido a GitHub. Se han completado los siguientes pasos:
+El proyecto **SUMAQ UYWA** está completamente preparado para ser subido a GitHub. Se han completado los siguientes pasos:
 
 ### 📁 Archivos Creados/Actualizados
 - ✅ `.gitignore` - Protege archivos sensibles y temporales
@@ -33,7 +33,7 @@ El proyecto **CuyesGPT** está completamente preparado para ser subido a GitHub.
 1. Ve a [GitHub.com](https://github.com)
 2. Haz click en **"New repository"** (botón verde)
 3. Configura el repositorio:
-   - **Repository name**: `cuyesgpt`
+   - **Repository name**: `Granja_cuyes` o `sumaq-uywa`
    - **Description**: `Sistema de gestión integral de granja de cuyes - Aplicación web fullstack`
    - **Visibility**: Public o Private (según prefieras)
    - **NO marques** "Initialize with README" (ya tenemos uno)
@@ -143,4 +143,4 @@ Si encuentras problemas:
 2. Consulta Stack Overflow
 3. Contacta al equipo de desarrollo
 
-**¡Tu proyecto CuyesGPT está listo para el mundo! 🎉**
+**¡Tu proyecto SUMAQ UYWA está listo para el mundo! 🎉**

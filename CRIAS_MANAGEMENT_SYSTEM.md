@@ -1,4 +1,4 @@
-# Sistema de Gestión de Crías y Etapas de Vida en CuyesGPT
+# Sistema de Gestión de Crías y Etapas de Vida en SUMAQ UYWA
 
 ## Resumen de Implementación
 

@@ -26,28 +26,73 @@ const app = express();
 
 // Configuración de CORS para desarrollo y producción
 const getAllowedOrigins = () => {
+  const baseOrigins = [
+    'https://sumaq-uywa-frontend.onrender.com',
+    'https://sumaq-uywa-fontend.onrender.com',  // URL real del frontend desplegado
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'http://localhost:5174'
+  ];
+
   if (process.env.NODE_ENV === 'production') {
-    // En producción, usar la variable de entorno CORS_ORIGIN
+    // En producción, agregar también la variable de entorno si existe
     const corsOrigin = process.env.CORS_ORIGIN;
-    return corsOrigin ? [corsOrigin] : [
-      'https://sumaq-uywa-frontend.onrender.com',
-      'https://sumaq-uywa-fontend.onrender.com'  // URL real del frontend desplegado
-    ];
+    if (corsOrigin && !baseOrigins.includes(corsOrigin)) {
+      baseOrigins.push(corsOrigin);
+    }
   }
-  // En desarrollo, permitir localhost
-  return ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'];
+  
+  return baseOrigins;
 };
 
 const corsOptions = {
-  origin: getAllowedOrigins(),
+  origin: function (origin: string | undefined, callback: Function) {
+    const allowedOrigins = getAllowedOrigins();
+    
+    console.log('🔍 CORS Request - Origin:', origin);
+    console.log('🔍 CORS Request - Allowed:', allowedOrigins);
+    
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS: Origin allowed:', origin);
+      callback(null, true);
+    } else {
+      console.log('❌ CORS: Origin blocked:', origin);
+      console.log('❌ CORS: Expected one of:', allowedOrigins);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Cache-Control',
+    'X-HTTP-Method-Override'
+  ],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 };
+
+// Debug: Mostrar orígenes permitidos
+console.log('🌐 CORS Origins permitidos:', getAllowedOrigins());
+console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
+console.log('🎯 CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(logger);
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 // Registrar rutas de cada módulo
 app.use('/api/cuyes', cuyesRoutes);

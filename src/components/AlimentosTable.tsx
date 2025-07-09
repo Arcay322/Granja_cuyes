@@ -1,27 +1,22 @@
-import { useEffect, useStateconst initialForm = {
-  nombre: '',
-  descripcion: '',
-  unidad: '',
-  stock: '',
-  costoUnitario: '',
-  proveedorId: undefined,
-};'react';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
-import toastService from '../services/toastService';
-import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
-import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import { DataStateRenderer, ConditionalRender } from '../utils/conditional-render';
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography,
   Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton,
-  Box, Tooltip, MenuItem, Select, FormControl, InputLabel, Chip, Divider, Alert,
-  useTheme, alpha, CircularProgress, TablePagination, Grid,
-  Checkbox, Toolbar, Slide, Fab
+  CircularProgress, Alert, Box, MenuItem, InputAdornment, Chip, Tooltip, 
+  Divider, Collapse, FormControl, InputLabel, Select, Avatar,
+  Card, CardContent, Menu, alpha, useTheme, DialogContentText, Snackbar,
+  InputBase, styled, Switch, FormControlLabel, TablePagination, Grid
 } from '../utils/mui';
 import { 
-  Add, Edit, Delete, Kitchen, Close, 
-  Description, Inventory2, AttachMoney, DeleteSweep
+  Add, Edit, Delete, FilterList, Search, Upload, Download, 
+  Refresh, Check, Close, MoreVert, Sort, 
+  ArrowDropDown, ArrowUpward, ArrowDownward, Visibility, Print,
+  LocalDining, Kitchen, Inventory2, ShoppingCart, Spa, Inventory,
+  FiberManualRecord, Description
 } from '@mui/icons-material';
-import { InputAdornment } from '../utils/mui';
+import { visuallyHidden } from '@mui/utils';
 
 interface Alimento {
   id?: number;
@@ -33,307 +28,153 @@ interface Alimento {
   proveedorId?: number;
 }
 
+interface Proveedor {
+  id: number;
+  nombre: string;
+  contacto: string;
+}
+
 const initialForm: Alimento = {
   nombre: '',
   descripcion: '',
   unidad: '',
-  stock: '' as any,
-  costoUnitario: '' as any,
-  proveedorId: undefined,
+  stock: 0,
+  costoUnitario: 0,
+  proveedorId: undefined, // Ahora lo dejaremos vacío para que el usuario lo seleccione
 };
 
-// Opciones para unidades
-const unidadOptions = [
-  'kg',
-  'gramos',
-  'litros',
-  'unidades',
-  'sacos',
-  'toneladas'
+interface HeadCell {
+  id: keyof Alimento | 'acciones';
+  label: string;
+  numeric: boolean;
+  sortable: boolean;
+}
+
+const headCells: HeadCell[] = [
+  { id: 'id', label: 'ID', numeric: true, sortable: true },
+  { id: 'nombre', label: 'Nombre', numeric: false, sortable: true },
+  { id: 'descripcion', label: 'Descripción', numeric: false, sortable: true },
+  { id: 'unidad', label: 'Unidad', numeric: false, sortable: true },
+  { id: 'stock', label: 'Stock', numeric: true, sortable: true },
+  { id: 'costoUnitario', label: 'Costo Unit. (S/.)', numeric: true, sortable: true },
+  { id: 'acciones', label: 'Acciones', numeric: false, sortable: false },
 ];
+
+type Order = 'asc' | 'desc';
+
+const SearchIconWrapper = styled('div')(({ theme }) => ({
+  padding: theme.spacing(0, 2),
+  height: '100%',
+  position: 'absolute',
+  pointerEvents: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: theme.palette.text.secondary,
+}));
+
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  width: '100%',
+  '& .MuiInputBase-input': {
+    padding: theme.spacing(1, 1, 1, 0),
+    paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    transition: theme.transitions.create('width'),
+    width: '100%',
+  },
+}));
 
 const AlimentosTable = () => {
   const theme = useTheme();
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
+  const [filteredAlimentos, setFilteredAlimentos] = useState<Alimento[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Alimento>(initialForm);
   const [editId, setEditId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterUnidad, setFilterUnidad] = useState('');
+  const [filterStockBajo, setFilterStockBajo] = useState(false);
+  const [order, setOrder] = useState<Order>('asc');
+  const [orderBy, setOrderBy] = useState<keyof Alimento>('id');
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [loadingProveedores, setLoadingProveedores] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [formErrors, setFormErrors] = useState({
-    nombre: '',
-    descripcion: '',
-    unidad: '',
-    stock: '',
-    costoUnitario: ''
-  });
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [showBulkActions, setShowBulkActions] = useState(false);
-  const [bulkActionLoading, setBulkActionLoading] = useState(false);
-
-  // Hook para confirmación de eliminación
-  const deleteConfirmation = useDeleteConfirmation({
-    onDelete: async (id: number) => {
-      await api.delete(`/alimentos/${id}`);
-      fetchAlimentos();
-    },
-    itemName: 'Alimento',
-    successMessage: 'Alimento eliminado exitosamente'
-  });
 
   const fetchAlimentos = () => {
     setLoading(true);
+    setError(null);
+    setSuccess(null);
     api.get('/alimentos')
       .then(res => {
-        setAlimentos(res.data as Alimento[]);
-        setError(null);
+        setAlimentos(res.data);
+        setFilteredAlimentos(res.data);
+        setLoading(false);
       })
       .catch(err => {
-        console.error("Error al cargar alimentos:", err);
-        setError("No se pudieron cargar los alimentos. Mostrando datos de ejemplo.");
-        // Datos de ejemplo
+        console.error('Error fetching alimentos:', err);
+        setError('Error al cargar los datos. Por favor, intenta de nuevo.');
+        setLoading(false);
+        // Datos de ejemplo para visualizar la interfaz
         const fakeAlimentos = [
-          { id: 1, nombre: 'Alfalfa', descripcion: 'Forraje fresco rico en proteínas', unidad: 'kg', stock: 100, costoUnitario: 2.50 },
-          { id: 2, nombre: 'Concentrado', descripcion: 'Alimento balanceado para cuyes', unidad: 'kg', stock: 50, costoUnitario: 5.00 },
-          { id: 3, nombre: 'Maíz molido', descripcion: 'Maíz procesado para alimentación', unidad: 'kg', stock: 75, costoUnitario: 3.20 },
-          { id: 4, nombre: 'Vitaminas', descripcion: 'Suplemento vitamínico', unidad: 'unidades', stock: 25, costoUnitario: 12.00 },
+          { id: 1, nombre: 'Alfalfa', descripcion: 'Forraje verde fresco', unidad: 'kg', stock: 150, costoUnitario: 2.5 },
+          { id: 2, nombre: 'Concentrado Premium', descripcion: 'Alimento balanceado con vitaminas', unidad: 'kg', stock: 80, costoUnitario: 5.8 },
+          { id: 3, nombre: 'Heno', descripcion: 'Forraje seco', unidad: 'Fardo', stock: 30, costoUnitario: 15.0 },
+          { id: 4, nombre: 'Suplemento Vitamínico', descripcion: 'Complemento alimenticio', unidad: 'Frasco', stock: 10, costoUnitario: 28.5 },
+          { id: 5, nombre: 'Pellets', descripcion: 'Alimento balanceado compactado', unidad: 'kg', stock: 200, costoUnitario: 4.2 },
+          { id: 6, nombre: 'Maíz', descripcion: 'Grano entero', unidad: 'kg', stock: 120, costoUnitario: 1.8 },
+          { id: 7, nombre: 'Harina de Soya', descripcion: 'Suplemento proteico', unidad: 'kg', stock: 75, costoUnitario: 3.5 },
+          { id: 8, nombre: 'Vitamina C', descripcion: 'Suplemento en polvo', unidad: 'Frasco', stock: 15, costoUnitario: 22.0 },
+          { id: 9, nombre: 'Pasto Fresco', descripcion: 'Hierba fresca cortada', unidad: 'kg', stock: 90, costoUnitario: 1.2 },
+          { id: 10, nombre: 'Avena', descripcion: 'Grano entero', unidad: 'kg', stock: 110, costoUnitario: 2.0 },
+          { id: 11, nombre: 'Chala', descripcion: 'Residuo de maíz', unidad: 'Fardo', stock: 45, costoUnitario: 8.5 },
+          { id: 12, nombre: 'Probióticos', descripcion: 'Suplemento digestivo', unidad: 'Frasco', stock: 8, costoUnitario: 35.0 },
         ];
         setAlimentos(fakeAlimentos);
+        setFilteredAlimentos(fakeAlimentos);
+      });
+  };
+
+  const fetchProveedores = () => {
+    setLoadingProveedores(true);
+    api.get('/proveedores')
+      .then(res => {
+        setProveedores(res.data);
+        setLoadingProveedores(false);
       })
-      .finally(() => {
-        setLoading(false);
+      .catch(err => {
+        console.error('Error fetching proveedores:', err);
+        setLoadingProveedores(false);
+        // Datos de ejemplo para visualizar la interfaz
+        const fakeProveedores = [
+          { id: 4, nombre: 'Agropecuaria Los Andes', contacto: '987654321' },
+          { id: 5, nombre: 'Nutrición Animal S.A.', contacto: '976543210' },
+        ];
+        setProveedores(fakeProveedores);
       });
   };
 
   useEffect(() => {
     fetchAlimentos();
+    fetchProveedores();
   }, []);
 
-  const handleOpen = (alimento?: Alimento) => {
-    if (alimento) {
-      setForm(alimento);
-      setEditId(alimento.id!);
-    } else {
-      setForm(initialForm);
-      setEditId(null);
-    }
-    setOpen(true);
-  };
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, filterUnidad, filterStockBajo, alimentos, order, orderBy]);
 
-  const handleClose = () => {
-    setOpen(false);
-    setForm(initialForm);
-    setEditId(null);
-    setError(null);
-    setSuccess(null);
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    
-    // Para campos numéricos, permitir valor vacío temporalmente
-    if (name === 'stock' || name === 'costoUnitario') {
-      // Si el valor está vacío, mantenerlo como string vacío
-      // Si tiene valor, convertir a número
-      const numericValue = value === '' ? '' : Number(value);
-      setForm(prev => ({
-        ...prev,
-        [name]: numericValue
-      }));
-    } else {
-      setForm(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-    
-    // Validar el campo en tiempo real
-    const error = validateField(name, value);
-    setFormErrors({ ...formErrors, [name]: error });
-  };
-
-  // Validar un campo específico
-  const validateField = (name: string, value: any) => {
-    let error = '';
-    
-    switch (name) {
-      case 'nombre':
-        if (!value || value.trim() === '') {
-          error = 'El nombre es obligatorio';
-        }
-        break;
-      case 'descripcion':
-        if (!value || value.trim() === '') {
-          error = 'La descripción es obligatoria';
-        }
-        break;
-      case 'unidad':
-        if (!value) {
-          error = 'Debe seleccionar una unidad';
-        }
-        break;
-      case 'stock':
-        if (!value || value === '' || Number(value) < 0) {
-          error = 'El stock debe ser mayor o igual a 0';
-        }
-        break;
-      case 'costoUnitario':
-        if (!value || value === '' || Number(value) <= 0) {
-          error = 'El costo unitario debe ser mayor a 0';
-        }
-        break;
-    }
-    
-    return error;
-  };
-
-  // Validar todo el formulario
-  const validateForm = () => {
-    const errors = {
-      nombre: validateField('nombre', form.nombre),
-      descripcion: validateField('descripcion', form.descripcion),
-      unidad: validateField('unidad', form.unidad),
-      stock: validateField('stock', form.stock),
-      costoUnitario: validateField('costoUnitario', form.costoUnitario)
-    };
-    
-    setFormErrors(errors);
-    
-    // Retornar true si no hay errores
-    return !Object.values(errors).some(error => error !== '');
-  };
-
-  const handleSubmit = async () => {
-    try {
-      // Validar formulario
-      const isValid = validateForm();
-      if (!isValid) {
-        toastService.error(
-          'Error de Validación',
-          'Por favor corrige los errores en el formulario'
-        );
-        return;
-      }
-
-      // Convertir campos vacíos a números antes de enviar
-      const formData = {
-        ...form,
-        stock: form.stock === '' ? 0 : Number(form.stock),
-        costoUnitario: form.costoUnitario === '' ? 0 : Number(form.costoUnitario)
-      };
-      
-      if (editId) {
-        await api.put(`/alimentos/${editId}`, formData);
-        toastService.success(
-          'Alimento Actualizado',
-          'Alimento actualizado exitosamente'
-        );
-      } else {
-        await api.post('/alimentos', formData);
-        toastService.success(
-          'Alimento Creado',
-          'Alimento registrado exitosamente'
-        );
-      }
-
-      // Verificar stock bajo después de actualizar
-      if (formData.stock < 10) {
-        toastService.warning(
-          'Stock Bajo',
-          `${formData.nombre} tiene solo ${formData.stock} ${formData.unidad} en stock`
-        );
-      }
-
-      fetchAlimentos();
-      handleClose();
-    } catch (err) {
-      console.error("Error al guardar alimento:", err);
-      setError('Error al guardar el alimento. Intenta de nuevo.');
-      toastService.error(
-        'Error al Guardar',
-        editId ? 'No se pudo actualizar el alimento' : 'No se pudo crear el alimento'
-      );
-    }
-  };
-
-  // Ya no necesitamos este método - usamos el hook de confirmación
-  /*
-  const handleDelete = async (id: number) => {
-    try {
-      await api.delete(`/alimentos/${id}`);
-      setSuccess('Alimento eliminado exitosamente');
-      toastService.crudSuccess('eliminar', 'Alimento');
-      fetchAlimentos();
-    } catch (err) {
-      console.error("Error al eliminar alimento:", err);
-      setError('Error al eliminar el alimento. Intenta de nuevo.');
-      toastService.crudError('eliminar', 'Alimento');
-    }
-  };
-  */
-
-  // Funciones para selección múltiple
-  const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      const newSelected = alimentos.map((n) => n.id!);
-      setSelectedIds(newSelected);
-      setShowBulkActions(newSelected.length > 0);
-    } else {
-      setSelectedIds([]);
-      setShowBulkActions(false);
-    }
-  };
-
-  const handleClick = (event: React.MouseEvent<unknown>, id: number) => {
-    const selectedIndex = selectedIds.indexOf(id);
-    let newSelected: number[] = [];
-
-    if (selectedIndex === -1) {
-      newSelected = newSelected.concat(selectedIds, id);
-    } else if (selectedIndex === 0) {
-      newSelected = newSelected.concat(selectedIds.slice(1));
-    } else if (selectedIndex === selectedIds.length - 1) {
-      newSelected = newSelected.concat(selectedIds.slice(0, -1));
-    } else if (selectedIndex > 0) {
-      newSelected = newSelected.concat(
-        selectedIds.slice(0, selectedIndex),
-        selectedIds.slice(selectedIndex + 1),
-      );
-    }
-
-    setSelectedIds(newSelected);
-    setShowBulkActions(newSelected.length > 0);
-  };
-
-  const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
-
-  // Funciones para acciones en lote
-  const handleBulkDelete = async () => {
-    setBulkActionLoading(true);
-    try {
-      await Promise.all(selectedIds.map(id => api.delete(`/alimentos/${id}`)));
-      toastService.success(
-        'Eliminación Exitosa',
-        `${selectedIds.length} alimentos eliminados exitosamente`
-      );
-      setSelectedIds([]);
-      setShowBulkActions(false);
-      fetchAlimentos();
-    } catch (err: any) {
-      console.error('Error al eliminar alimentos:', err);
-      toastService.error(
-        'Error al Eliminar',
-        'No se pudieron eliminar algunos alimentos'
-      );
-    } finally {
-      setBulkActionLoading(false);
-    }
-  };
-
-  const handleChangePage = (_event: unknown, newPage: number) => {
+  const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -342,214 +183,562 @@ const AlimentosTable = () => {
     setPage(0);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-PE', {
-      style: 'currency',
-      currency: 'PEN'
-    }).format(amount);
+  const applyFilters = () => {
+    let filtered = [...alimentos];
+
+    // Búsqueda global
+    if (searchTerm) {
+      filtered = filtered.filter(alimento => 
+        Object.values(alimento).some(value => 
+          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+    }
+
+    // Filtros específicos
+    if (filterUnidad) {
+      filtered = filtered.filter(alimento => alimento.unidad === filterUnidad);
+    }
+    if (filterStockBajo) {
+      filtered = filtered.filter(alimento => alimento.stock < 50);
+    }
+
+    // Ordenamiento
+    filtered = stableSort(filtered, getComparator(order, orderBy));
+    
+    setFilteredAlimentos(filtered);
   };
 
-  const getStockColor = (stock: number) => {
-    if (stock <= 10) return theme.palette.error.main;
-    if (stock <= 30) return theme.palette.warning.main;
-    return theme.palette.success.main;
+  const resetFilters = () => {
+    setFilterUnidad('');
+    setFilterStockBajo(false);
+  };
+
+  const getUniqueUnidades = () => {
+    const unidades = alimentos.map(alimento => alimento.unidad);
+    return [...new Set(unidades)];
+  };
+
+  function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
+    if (b[orderBy] < a[orderBy]) {
+      return -1;
+    }
+    if (b[orderBy] > a[orderBy]) {
+      return 1;
+    }
+    return 0;
+  }
+
+  function getComparator<Key extends keyof any>(
+    order: Order,
+    orderBy: Key,
+  ): (a: { [key in Key]: number | string }, b: { [key in Key]: number | string }) => number {
+    return order === 'desc'
+      ? (a, b) => descendingComparator(a, b, orderBy)
+      : (a, b) => -descendingComparator(a, b, orderBy);
+  }
+
+  function stableSort<T>(array: readonly T[], comparator: (a: T, b: T) => number) {
+    const stabilizedThis = array.map((el, index) => [el, index] as [T, number]);
+    stabilizedThis.sort((a, b) => {
+      const order = comparator(a[0], b[0]);
+      if (order !== 0) {
+        return order;
+      }
+      return a[1] - b[1];
+    });
+    return stabilizedThis.map((el) => el[0]);
+  }
+
+  const handleRequestSort = (property: keyof Alimento) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const handleOpen = (alimento?: Alimento) => {
+    if (alimento && alimento.id) {
+      setForm({ ...alimento });
+      setEditId(alimento.id);
+    } else {
+      setForm(initialForm);
+      setEditId(null);
+    }
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setForm(initialForm);
+    setEditId(null);
+    setOpen(false);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setForm(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!form.nombre || !form.unidad || form.stock < 0 || form.costoUnitario <= 0) {
+      setError("Por favor, completa todos los campos requeridos correctamente.");
+      return;
+    }
+
+    if (editId) {
+      // Actualizar existente
+      api.put(`/alimentos/${editId}`, form)
+        .then(() => {
+          setSuccess("Alimento actualizado correctamente");
+          fetchAlimentos();
+          handleClose();
+        })
+        .catch(err => {
+          console.error('Error updating alimento:', err);
+          setError("Error al actualizar el alimento. Por favor, intenta de nuevo.");
+          
+          // En modo de demostración, actualizar localmente
+          setAlimentos(prev => prev.map(item => 
+            item.id === editId ? { ...form, id: editId } : item
+          ));
+          setSuccess("Alimento actualizado correctamente (simulado)");
+          handleClose();
+        });
+    } else {
+      // Crear nuevo
+      api.post('/alimentos', form)
+        .then(() => {
+          setSuccess("Alimento añadido correctamente");
+          fetchAlimentos();
+          handleClose();
+        })
+        .catch(err => {
+          console.error('Error creating alimento:', err);
+          setError("Error al crear el alimento. Por favor, intenta de nuevo.");
+          
+          // En modo de demostración, añadir localmente
+          const newAlimento = {
+            ...form,
+            id: Math.max(...alimentos.map(a => a.id || 0)) + 1
+          };
+          setAlimentos(prev => [...prev, newAlimento]);
+          setSuccess("Alimento añadido correctamente (simulado)");
+          handleClose();
+        });
+    }
+  };
+
+  const handleActionClick = (event: React.MouseEvent<HTMLButtonElement>, id: number) => {
+    setActionMenuAnchor(event.currentTarget);
+    setSelectedId(id);
+  };
+
+  const handleActionClose = () => {
+    setActionMenuAnchor(null);
+    setSelectedId(null);
+  };
+
+  const openDeleteConfirm = (id: number) => {
+    setDeleteId(id);
+    setConfirmOpen(true);
+    handleActionClose();
+  };
+
+  const handleDelete = () => {
+    if (!deleteId) return;
+    
+    api.delete(`/alimentos/${deleteId}`)
+      .then(() => {
+        setSuccess("Alimento eliminado correctamente");
+        fetchAlimentos();
+        setConfirmOpen(false);
+        setDeleteId(null);
+      })
+      .catch(err => {
+        console.error('Error deleting alimento:', err);
+        setError("Error al eliminar el alimento. Por favor, intenta de nuevo.");
+        
+        // En modo de demostración, eliminar localmente
+        setAlimentos(prev => prev.filter(item => item.id !== deleteId));
+        setSuccess("Alimento eliminado correctamente (simulado)");
+        setConfirmOpen(false);
+        setDeleteId(null);
+      });
+  };
+
+  const getStockLevelColor = (stock: number) => {
+    if (stock <= 20) {
+      return theme.palette.error.main;
+    } else if (stock <= 50) {
+      return theme.palette.warning.main;
+    } else {
+      return theme.palette.success.main;
+    }
+  };
+
+  const toggleViewMode = () => {
+    setViewMode(prev => prev === 'table' ? 'grid' : 'table');
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Cabecera */}
-      <Box 
-        sx={{ 
-          p: 2, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          borderBottom: `1px solid ${theme.palette.divider}`
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Kitchen color="primary" />
-          <Typography variant="h6">Inventario de Alimentos</Typography>
+    <Box sx={{ 
+      borderRadius: 2, 
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: theme.shadows[3]
+    }}>
+      {/* Header */}
+      <Box sx={{ 
+        p: 2, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        bgcolor: alpha(theme.palette.primary.main, 0.04)
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Avatar sx={{ 
+            bgcolor: alpha(theme.palette.primary.main, 0.1), 
+            color: theme.palette.primary.main,
+            mr: 2 
+          }}>
+            <LocalDining />
+          </Avatar>
+          <Typography variant="h5" component="h2" fontWeight="bold" color="text.primary">
+            Inventario de Alimentos
+          </Typography>
         </Box>
-        <Button 
-          variant="contained" 
-          startIcon={<Add />} 
-          onClick={() => handleOpen()}
-          sx={{ 
-            borderRadius: 2,
-            textTransform: 'none',
-            boxShadow: theme.shadows[2]
-          }}
-        >
-          Agregar Alimento
-        </Button>
+
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => handleOpen()}
+            size="small"
+          >
+            Agregar Alimento
+          </Button>
+          <IconButton 
+            onClick={toggleViewMode} 
+            color="primary"
+            sx={{ 
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              '&:hover': {
+                bgcolor: alpha(theme.palette.primary.main, 0.2),
+              }
+            }}
+          >
+            {viewMode === 'table' ? <Inventory2 /> : <Table />}
+          </IconButton>
+        </Box>
       </Box>
 
-      {/* Alerta de error */}
+      {/* Barra de búsqueda y filtros */}
+      <Box sx={{ 
+        p: 2, 
+        display: 'flex', 
+        gap: 2, 
+        alignItems: 'center', 
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        flexWrap: 'wrap'
+      }}>
+        <Paper
+          component="form"
+          sx={{
+            p: '2px 4px',
+            display: 'flex',
+            alignItems: 'center',
+            width: { xs: '100%', sm: 300 },
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: 'none'
+          }}
+        >
+          <SearchIconWrapper>
+            <Search />
+          </SearchIconWrapper>
+          <StyledInputBase
+            placeholder="Buscar alimentos..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <IconButton 
+              size="small" 
+              onClick={() => setSearchTerm('')} 
+              sx={{ p: '5px' }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          )}
+        </Paper>
+
+        <Button
+          size="small"
+          startIcon={<FilterList />}
+          onClick={() => setFilterOpen(!filterOpen)}
+          variant={filterOpen ? "contained" : "outlined"}
+          color="primary"
+          sx={{ height: 40 }}
+        >
+          Filtros
+        </Button>
+
+        {(filterUnidad || filterStockBajo) && (
+          <Button
+            size="small"
+            onClick={resetFilters}
+            sx={{ height: 40 }}
+          >
+            Limpiar filtros
+          </Button>
+        )}
+
+        <Box sx={{ flexGrow: 1 }} />
+
+        <Tooltip title="Actualizar datos">
+          <IconButton onClick={fetchAlimentos} size="small" sx={{ height: 40, width: 40 }}>
+            <Refresh />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      <Collapse in={filterOpen}>
+        <Box sx={{ 
+          p: 2, 
+          bgcolor: alpha(theme.palette.background.default, 0.5),
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 2
+        }}>
+          <FormControl sx={{ minWidth: 150 }} size="small">
+            <InputLabel id="filter-unidad-label">Unidad</InputLabel>
+            <Select
+              labelId="filter-unidad-label"
+              value={filterUnidad}
+              label="Unidad"
+              onChange={(e) => setFilterUnidad(e.target.value)}
+            >
+              <MenuItem value="">Todos</MenuItem>
+              {getUniqueUnidades().map(unidad => (
+                <MenuItem key={unidad} value={unidad}>{unidad}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControlLabel
+            control={
+              <Switch 
+                checked={filterStockBajo} 
+                onChange={(e) => setFilterStockBajo(e.target.checked)}
+                color="warning"
+              />
+            }
+            label="Stock bajo"
+          />
+        </Box>
+      </Collapse>
+
+      {/* Alertas de error o éxito */}
       {error && (
-        <Alert severity="error" sx={{ m: 2 }} onClose={() => setError(null)}>
+        <Alert 
+          severity="error" 
+          sx={{ m: 2, borderRadius: 1 }}
+          onClose={() => setError(null)}
+        >
           {error}
         </Alert>
       )}
-      {/* Alerta de éxito */}
+      
       {success && (
-        <Alert severity="success" sx={{ m: 2 }} onClose={() => setSuccess(null)}>
+        <Alert 
+          severity="success" 
+          sx={{ m: 2, borderRadius: 1 }}
+          onClose={() => setSuccess(null)}
+        >
           {success}
         </Alert>
       )}
-
-      {/* Tabla principal */}
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          {/* Barra de herramientas para acciones en lote */}
-          <Slide direction="down" in={showBulkActions} mountOnEnter unmountOnExit>
-            <Toolbar
-              sx={{
-                pl: { sm: 2 },
-                pr: { xs: 1, sm: 1 },
-                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-                borderRadius: 1,
-                mb: 2,
-                border: (theme) => `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-              }}
-            >
-              <Typography
-                sx={{ flex: '1 1 100%' }}
-                color="primary"
-                variant="subtitle1"
-                component="div"
-              >
-                {selectedIds.length} alimento{selectedIds.length !== 1 ? 's' : ''} seleccionado{selectedIds.length !== 1 ? 's' : ''}
+      
+      {/* Contenido principal */}
+      <DataStateRenderer
+          loading={loading}
+          error={error}
+          isEmpty={filteredAlimentos.length === 0}
+          loadingComponent={
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+              <CircularProgress color="primary" />
+            </Box>
+          }
+          errorComponent={
+            <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>
+          }
+          emptyComponent={
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              textAlign: 'center', 
+              p: 4, 
+              height: '200px',
+              gap: 2
+            }}>
+              <Inventory2 sx={{ fontSize: 48, color: alpha(theme.palette.text.secondary, 0.2) }} />
+              <Typography variant="h6" color="text.secondary">
+                No hay alimentos que coincidan con los filtros
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Tooltip title="Eliminar seleccionados">
-                  <IconButton
-                    size="small"
-                    onClick={handleBulkDelete}
-                    disabled={bulkActionLoading}
-                    color="error"
-                  >
-                    {bulkActionLoading ? <CircularProgress size={20} /> : <DeleteSweep />}
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Toolbar>
-          </Slide>
-
-          <TableContainer sx={{ 
-            flex: 1, 
-            overflowY: 'auto',
-            overflowX: 'auto', // Scroll horizontal para móvil
-            width: '100%',
-            maxWidth: { xs: 'calc(100vw - 32px)', sm: '100%' }, // Ancho máximo en móvil
-            borderRadius: 2,
-            boxShadow: (theme) => `0 0 12px ${alpha(theme.palette.primary.main, 0.08)}`,
-            '&::-webkit-scrollbar': {
-              width: '8px',
-              height: '8px',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              borderRadius: '8px',
-              backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.2),
-            },
-            '&::-webkit-scrollbar-track': {
-              borderRadius: '8px',
-              backgroundColor: (theme) => alpha(theme.palette.grey[200], 0.6),
-            }
-          }}>
-            <Table stickyHeader sx={{ minWidth: { xs: 600, sm: 800 } }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      color="primary"
-                      indeterminate={selectedIds.length > 0 && selectedIds.length < alimentos.length}
-                      checked={alimentos.length > 0 && selectedIds.length === alimentos.length}
-                      onChange={handleSelectAllClick}
-                      inputProps={{ 'aria-label': 'Seleccionar todo' }}
-                    />
-                  </TableCell>
-                  <TableCell>ID</TableCell>
-                  <TableCell>Nombre</TableCell>
-                  <TableCell>Descripción</TableCell>
-                  <TableCell>Unidad</TableCell>
-                  <TableCell>Stock</TableCell>
-                  <TableCell>Costo Unitario</TableCell>
-                  <TableCell>Acciones</TableCell>
+              <Typography variant="body2" color="text.secondary">
+                Intenta modificar los filtros o agregar un nuevo alimento
+              </Typography>
+              <Button 
+                variant="outlined" 
+                startIcon={<Add />} 
+                onClick={() => handleOpen()}
+                size="small"
+                sx={{ mt: 1 }}
+              >
+                Agregar Alimento
+              </Button>
+            </Box>
+          }
+        >
+          <ConditionalRender condition={viewMode === 'table'}>
+            <TableContainer sx={{ 
+              width: '100%',
+              borderRadius: 2,
+              boxShadow: (theme) => `0 0 12px ${alpha(theme.palette.primary.main, 0.08)}`
+            }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                  {headCells.map((headCell) => (
+                    <TableCell
+                      key={headCell.id}
+                      align={headCell.numeric ? 'right' : 'left'}
+                      sortDirection={orderBy === headCell.id ? order : false}
+                      sx={{ 
+                        fontWeight: 'bold',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {headCell.sortable ? (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            '&:hover': {
+                              color: theme.palette.primary.main,
+                            },
+                          }}
+                          onClick={() => headCell.id !== 'acciones' && handleRequestSort(headCell.id as keyof Alimento)}
+                        >
+                          {headCell.label}
+                          {orderBy === headCell.id ? (
+                            <Box component="span" sx={{ ml: 1, position: 'relative' }}>
+                              {order === 'desc' ? <ArrowDownward fontSize="small" /> : <ArrowUpward fontSize="small" />}
+                            </Box>
+                          ) : null}
+                        </Box>
+                      ) : (
+                        headCell.label
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {(rowsPerPage > 0
-                  ? alimentos.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  : alimentos
-                ).map(alimento => {
-                  const isItemSelected = isSelected(alimento.id!);
-                  const labelId = `enhanced-table-checkbox-${alimento.id}`;
-                  
-                  return (
-                    <TableRow 
-                      key={alimento.id} 
-                      hover
-                      selected={isItemSelected}
-                      onClick={(event) => handleClick(event, alimento.id!)}
-                      aria-checked={isItemSelected}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          color="primary"
-                          checked={isItemSelected}
-                          onChange={(_event) => handleClick({} as React.MouseEvent<unknown>, alimento.id!)}
-                          inputProps={{ 'aria-labelledby': labelId }}
-                        />
-                      </TableCell>
-                      <TableCell>{alimento.id}</TableCell>
-                      <TableCell sx={{ fontWeight: 500 }}>{alimento.nombre}</TableCell>
-                      <TableCell>{alimento.descripcion}</TableCell>
-                      <TableCell>{alimento.unidad}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={`${alimento.stock} ${alimento.unidad}`}
-                          size="small" 
+                  ? filteredAlimentos.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  : filteredAlimentos
+                ).map(alimento => (
+                  <TableRow 
+                    key={alimento.id}
+                    hover
+                    sx={{ 
+                      '&:hover': { 
+                        bgcolor: alpha(theme.palette.primary.light, 0.1),
+                        cursor: 'pointer'
+                      }
+                    }}
+                  >
+                    <TableCell>{alimento.id}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Avatar 
                           sx={{ 
-                            bgcolor: alpha(getStockColor(alimento.stock), 0.1),
-                            color: getStockColor(alimento.stock),
-                            fontWeight: 500
-                          }} 
-                        />
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 500 }}>{formatCurrency(alimento.costoUnitario)}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Editar">
-                          <IconButton color="primary" onClick={() => handleOpen(alimento)} size="small">
-                            <Edit />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Eliminar">
-                          <IconButton 
-                            color="error" 
-                            onClick={() => deleteConfirmation.handleDeleteClick(alimento.id!)} 
-                            size="small"
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {alimentos.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
-                      <Typography color="textSecondary">
-                        No hay alimentos registrados. Agrega uno nuevo para comenzar.
-                      </Typography>
+                            width: 32, 
+                            height: 32, 
+                            mr: 1.5, 
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            color: theme.palette.primary.main,
+                          }}
+                        >
+                          <Kitchen fontSize="small" />
+                        </Avatar>
+                        <Typography variant="body2" fontWeight="medium">
+                          {alimento.nombre}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{alimento.descripcion}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={alimento.unidad} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: alpha(theme.palette.secondary.main, 0.2),
+                          color: theme.palette.secondary.dark,
+                          fontWeight: 'medium'
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Chip 
+                        label={alimento.stock} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: alpha(getStockLevelColor(alimento.stock), 0.1),
+                          color: getStockLevelColor(alimento.stock),
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">S/. {alimento.costoUnitario.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex' }}>
+                        <IconButton 
+                          color="primary" 
+                          size="small" 
+                          onClick={() => handleOpen(alimento)}
+                        >
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        <IconButton 
+                          color="error" 
+                          size="small" 
+                          onClick={() => openDeleteConfirm(alimento.id!)}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleActionClick(e, alimento.id!)}
+                        >
+                          <MoreVert fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
@@ -558,7 +747,7 @@ const AlimentosTable = () => {
           <TablePagination
             rowsPerPageOptions={[10, 25, 50, { label: 'Todos', value: -1 }]}
             component="div"
-            count={alimentos.length}
+            count={filteredAlimentos.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
@@ -566,36 +755,163 @@ const AlimentosTable = () => {
             labelRowsPerPage="Filas por página:"
             labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
           />
-        </>
-      )}
+          </ConditionalRender>
+          <ConditionalRender condition={viewMode !== 'table'}>
+            <Grid container spacing={2} sx={{ p: 2 }}>
+              {(rowsPerPage > 0
+                ? filteredAlimentos.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                : filteredAlimentos
+              ).map(alimento => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={alimento.id}>
+                  <Card 
+                    sx={{ 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <Box sx={{ 
+                    p: 2, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    borderBottom: `1px solid ${theme.palette.divider}`
+                  }}>
+                    <Avatar 
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                        color: theme.palette.primary.main,
+                        mr: 2
+                      }}
+                    >
+                      <Spa />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" component="h3" fontWeight="bold">
+                        {alimento.nombre}
+                      </Typography>
+                      <Chip 
+                        label={alimento.unidad} 
+                        size="small" 
+                        sx={{ 
+                          mt: 0.5,
+                          bgcolor: alpha(theme.palette.secondary.main, 0.2),
+                          color: theme.palette.secondary.dark
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      {alimento.descripcion}
+                    </Typography>
+                    
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2">
+                        Stock:
+                      </Typography>
+                      <Chip 
+                        label={`${alimento.stock} ${alimento.unidad}`} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: alpha(getStockLevelColor(alimento.stock), 0.1),
+                          color: getStockLevelColor(alimento.stock),
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="body2">
+                        Costo:
+                      </Typography>
+                      <Typography variant="body1" fontWeight="bold" color="text.primary">
+                        S/. {alimento.costoUnitario.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1 }}>
+                    <Button 
+                      size="small" 
+                      startIcon={<Edit />} 
+                      onClick={() => handleOpen(alimento)}
+                    >
+                      Editar
+                    </Button>
+                    <Button 
+                      color="error" 
+                      size="small" 
+                      startIcon={<Delete />} 
+                      onClick={() => openDeleteConfirm(alimento.id!)}
+                    >
+                      Eliminar
+                    </Button>
+                  </Box>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          
+          {/* Paginación para vista de grid */}
+          <TablePagination
+            rowsPerPageOptions={[12, 24, 48, { label: 'Todos', value: -1 }]}
+            component="div"
+            count={filteredAlimentos.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            labelRowsPerPage="Tarjetas por página:"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+          />
+          </ConditionalRender>
+        </DataStateRenderer>
 
-      {/* Dialog para agregar/editar */}
-      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>
+      {/* Dialog para agregar o editar */}
+      <Dialog 
+        open={open} 
+        onClose={handleClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            m: { xs: 1, sm: 2 },
+            width: { xs: 'calc(100% - 16px)', sm: 'calc(100% - 32px)', md: '800px' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
           <Typography variant="h5" component="div" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Kitchen color="primary" />
+            <LocalDining color="primary" />
             {editId ? 'Editar Alimento' : 'Agregar Alimento'}
           </Typography>
         </DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={2.5}>
-            <Grid xs={12} sm={6}>
+            <Grid item xs={12} sm={6}>
               <TextField 
                 label="Nombre" 
                 name="nombre" 
                 value={form.nombre} 
                 onChange={handleChange} 
-                fullWidth 
-                required
+                required 
+                fullWidth
                 variant="outlined"
                 size="small"
-                error={!!formErrors.nombre}
-                helperText={formErrors.nombre}
+                placeholder="Ej: Alfalfa, Concentrado Premium"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Kitchen fontSize="small" />
+                      <LocalDining fontSize="small" />
                     </InputAdornment>
                   ),
                 }}
@@ -603,75 +919,41 @@ const AlimentosTable = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField 
-                label="Descripción" 
-                name="descripcion" 
-                value={form.descripcion} 
+                label="Unidad" 
+                name="unidad" 
+                value={form.unidad} 
                 onChange={handleChange} 
-                fullWidth 
-                required
+                required 
+                fullWidth
                 variant="outlined"
                 size="small"
-                error={!!formErrors.descripcion}
-                helperText={formErrors.descripcion}
+                placeholder="Ej: kg, Fardo, Frasco"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Description fontSize="small" />
+                      <Inventory2 fontSize="small" />
                     </InputAdornment>
                   ),
                 }}
               />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required variant="outlined" size="small"
-                error={!!formErrors.unidad}
-              >
-                <InputLabel>Unidad</InputLabel>
-                <Select
-                  name="unidad"
-                  value={form.unidad}
-                  onChange={(e) => {
-                    setForm({ ...form, unidad: e.target.value });
-                    const error = validateField('unidad', e.target.value);
-                    setFormErrors({ ...formErrors, unidad: error });
-                  }}
-                  label="Unidad"
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <Inventory2 fontSize="small" />
-                    </InputAdornment>
-                  }
-                >
-                  {unidadOptions.map((unidad) => (
-                    <MenuItem key={unidad} value={unidad}>{unidad}</MenuItem>
-                  ))}
-                </Select>
-                {formErrors.unidad && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {formErrors.unidad}
-                  </Typography>
-                )}
-              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField 
                 label="Stock" 
                 name="stock" 
                 type="number" 
-                value={form.stock === 0 ? '' : form.stock} 
+                value={form.stock} 
                 onChange={handleChange} 
-                onFocus={(e) => e.target.select()}
-                fullWidth 
-                required
+                required 
+                fullWidth
                 variant="outlined"
                 size="small"
                 inputProps={{ min: 0, step: 1 }}
-                error={!!formErrors.stock}
-                helperText={formErrors.stock}
+                placeholder="Cantidad disponible"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Inventory2 fontSize="small" />
+                      <Inventory fontSize="small" />
                     </InputAdornment>
                   ),
                 }}
@@ -679,23 +961,63 @@ const AlimentosTable = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField 
-                label="Costo Unitario" 
+                label="Costo Unitario (S/.)" 
                 name="costoUnitario" 
                 type="number" 
-                value={form.costoUnitario === 0 ? '' : form.costoUnitario} 
+                value={form.costoUnitario} 
                 onChange={handleChange} 
-                onFocus={(e) => e.target.select()}
-                fullWidth 
-                required
+                required 
+                fullWidth
                 variant="outlined"
                 size="small"
-                inputProps={{ min: 0, step: 0.01 }}
-                error={!!formErrors.costoUnitario}
-                helperText={formErrors.costoUnitario}
+                inputProps={{ min: 0, step: 0.1 }}
+                placeholder="Ej: 5.50"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <AttachMoney fontSize="small" />
+                      <ShoppingCart fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="proveedor-label">Proveedor</InputLabel>
+                <Select
+                  labelId="proveedor-label"
+                  id="proveedor"
+                  value={form.proveedorId || ''}
+                  name="proveedorId"
+                  label="Proveedor"
+                  onChange={handleChange}
+                  required
+                >
+                  {proveedores.map((proveedor) => (
+                    <MenuItem key={proveedor.id} value={proveedor.id}>
+                      {proveedor.nombre}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField 
+                label="Descripción" 
+                name="descripcion" 
+                value={form.descripcion} 
+                onChange={handleChange} 
+                required 
+                fullWidth
+                multiline
+                rows={2}
+                variant="outlined"
+                size="small"
+                placeholder="Ej: Forraje verde fresco para cuyes adultos"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start" sx={{ alignSelf: "flex-start", mt: 1.5 }}>
+                      <Description fontSize="small" />
                     </InputAdornment>
                   ),
                 }}
@@ -704,43 +1026,103 @@ const AlimentosTable = () => {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} variant="outlined" startIcon={<Close />}>
+          <Button 
+            onClick={handleClose} 
+            variant="outlined" 
+            color="inherit"
+            startIcon={<Close />}
+            sx={{ borderRadius: 2 }}
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} variant="contained" startIcon={editId ? <Edit /> : <Add />}>
+          <Button 
+            onClick={handleSubmit} 
+            variant="contained"
+            startIcon={editId ? <Edit /> : <Add />}
+            sx={{ borderRadius: 2 }}
+          >
             {editId ? 'Guardar Cambios' : 'Agregar Alimento'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Diálogo de confirmación de eliminación */}
-      <ConfirmDeleteDialog
-        open={deleteConfirmation.confirmOpen}
-        onClose={deleteConfirmation.handleCancelDelete}
-        onConfirm={deleteConfirmation.handleConfirmDelete}
-        itemName="alimento"
-        loading={deleteConfirmation.loading}
-      />
+      {/* Dialog de confirmación para eliminar */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: 24
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <Avatar sx={{ bgcolor: alpha(theme.palette.error.main, 0.1), color: theme.palette.error.main }}>
+            <Delete />
+          </Avatar>
+          <Typography variant="h6">
+            Confirmar Eliminación
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <DialogContentText>
+            ¿Está seguro que desea eliminar este alimento? Esta acción no se puede deshacer.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+          <Button 
+            onClick={() => setConfirmOpen(false)} 
+            variant="outlined"
+            startIcon={<Close />}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleDelete} 
+            variant="contained" 
+            color="error"
+            startIcon={<Delete />}
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Botón flotante para limpiar selección */}
-      {selectedIds.length > 0 && (
-        <Fab
-          color="secondary"
-          aria-label="limpiar selección"
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            setSelectedIds([]);
-            setShowBulkActions(false);
-          }}
-        >
-          <Close />
-        </Fab>
-      )}
+      {/* Menú de acciones adicionales */}
+      <Menu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor)}
+        onClose={handleActionClose}
+        sx={{ '& .MuiPaper-root': { borderRadius: 2, boxShadow: 3 } }}
+      >
+        <MenuItem onClick={() => selectedId && handleOpen(alimentos.find(a => a.id === selectedId))}>
+          <Edit fontSize="small" sx={{ mr: 1 }} /> Editar
+        </MenuItem>
+        <MenuItem onClick={() => selectedId && openDeleteConfirm(selectedId)}>
+          <Delete fontSize="small" sx={{ mr: 1 }} /> Eliminar
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleActionClose}>
+          <Print fontSize="small" sx={{ mr: 1 }} /> Imprimir detalles
+        </MenuItem>
+      </Menu>
+
+      {/* Snackbar para notificaciones */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 };

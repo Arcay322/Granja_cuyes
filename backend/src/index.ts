@@ -32,7 +32,7 @@ const getAllowedOrigins = () => {
     return corsOrigin ? [corsOrigin] : ['https://sumaq-uywa-frontend.onrender.com'];
   }
   // En desarrollo, permitir localhost
-  return ['http://localhost:3000', 'http://localhost:5173'];
+  return ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'];
 };
 
 const corsOptions = {

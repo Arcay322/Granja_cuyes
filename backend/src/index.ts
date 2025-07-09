@@ -29,7 +29,10 @@ const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
     // En producción, usar la variable de entorno CORS_ORIGIN
     const corsOrigin = process.env.CORS_ORIGIN;
-    return corsOrigin ? [corsOrigin] : ['https://sumaq-uywa-frontend.onrender.com'];
+    return corsOrigin ? [corsOrigin] : [
+      'https://sumaq-uywa-frontend.onrender.com',
+      'https://sumaq-uywa-fontend.onrender.com'  // URL real del frontend desplegado
+    ];
   }
   // En desarrollo, permitir localhost
   return ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'];

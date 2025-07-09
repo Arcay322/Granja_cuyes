@@ -265,6 +265,20 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
   ```
 - **Verificación**: Inspecciona el Network tab del navegador para ver qué URL está usando
 
+### Error CORS en producción:
+- **Problema**: Backend no permite requests desde el dominio del frontend
+- **Causa**: Variable `CORS_ORIGIN` no configurada en el backend
+- **Solución**: Ve a Settings > Environment en tu servicio BACKEND y configura:
+  ```
+  CORS_ORIGIN=https://tu-frontend.onrender.com
+  ```
+- **IMPORTANTE**: Usar la URL EXACTA de tu frontend (copiar desde Render dashboard)
+
+### Error "requests van sin /api":
+- **Problema**: Requests van a `/alimentos` en lugar de `/api/alimentos`
+- **Causa**: `VITE_API_URL` no configurada o el frontend no está usando la variable
+- **Solución**: Asegurar que `VITE_API_URL` termine en `/api`
+
 ### Build Fallido:
 - Revisa los logs en la pestaña "Events"
 - Verifica que todas las dependencias estén en `package.json`

@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useStateconst initialForm = {
+  nombre: '',
+  descripcion: '',
+  unidad: '',
+  stock: '',
+  costoUnitario: '',
+  proveedorId: undefined,
+};'react';
 import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 import {
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography,
   Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton,
   Box, Tooltip, MenuItem, Select, FormControl, InputLabel, Chip, Divider, Alert,
   useTheme, alpha, CircularProgress, TablePagination, Grid,
@@ -12,8 +19,7 @@ import {
 } from '../utils/mui';
 import { 
   Add, Edit, Delete, Kitchen, Close, 
-  Description, Inventory2, AttachMoney, DeleteSweep, SelectAll,
-  CheckBox, CheckBoxOutlineBlank
+  Description, Inventory2, AttachMoney, DeleteSweep
 } from '@mui/icons-material';
 import { InputAdornment } from '../utils/mui';
 
@@ -82,7 +88,7 @@ const AlimentosTable = () => {
     setLoading(true);
     api.get('/alimentos')
       .then(res => {
-        setAlimentos(res.data);
+        setAlimentos(res.data as Alimento[]);
         setError(null);
       })
       .catch(err => {
@@ -237,8 +243,7 @@ const AlimentosTable = () => {
       if (formData.stock < 10) {
         toastService.warning(
           'Stock Bajo',
-          `${formData.nombre} tiene solo ${formData.stock} ${formData.unidad} en stock`,
-          'stock'
+          `${formData.nombre} tiene solo ${formData.stock} ${formData.unidad} en stock`
         );
       }
 
@@ -328,7 +333,7 @@ const AlimentosTable = () => {
     }
   };
 
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -497,7 +502,7 @@ const AlimentosTable = () => {
                         <Checkbox
                           color="primary"
                           checked={isItemSelected}
-                          onChange={(event) => handleClick(event, alimento.id!)}
+                          onChange={(_event) => handleClick({} as React.MouseEvent<unknown>, alimento.id!)}
                           inputProps={{ 'aria-labelledby': labelId }}
                         />
                       </TableCell>
@@ -575,7 +580,7 @@ const AlimentosTable = () => {
         <Divider />
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={2.5}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField 
                 label="Nombre" 
                 name="nombre" 

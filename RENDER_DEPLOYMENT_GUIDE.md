@@ -160,10 +160,18 @@ npm install && npm run build
 
 ### Variables de Entorno:
 ```bash
-VITE_API_URL=https://sumaq-uywa-backend.onrender.com/api
+VITE_API_URL=https://TU-BACKEND-REAL.onrender.com/api
 ```
 
-**⚠️ Importante**: Reemplaza con la URL real de tu backend una vez que esté desplegado.
+**⚠️ MUY IMPORTANTE**: 
+- Reemplaza `TU-BACKEND-REAL` con el nombre exacto de tu servicio backend en Render
+- **DEBE incluir `/api` al final**
+- **DEBE usar `https://` no `http://`**
+
+**Ejemplo real:**
+```bash
+VITE_API_URL=https://sumaq-uywa-backend.onrender.com/api
+```
 
 4. Haz clic en **"Create Static Site"**
 
@@ -247,6 +255,15 @@ Tu proyecto ya incluye un archivo `render.yaml` que automatiza todo el proceso. 
 ### Error 404 en el Frontend:
 - Verifica que `VITE_API_URL` apunte a la URL correcta del backend
 - Asegúrate de incluir `/api` al final
+
+### Frontend no puede conectar al backend (sigue usando localhost):
+- **Problema**: El frontend usa localhost en lugar del backend de Render
+- **Causa**: Variable `VITE_API_URL` no configurada o incorrecta
+- **Solución**: Ve a Settings > Environment en tu servicio frontend y configura:
+  ```
+  VITE_API_URL=https://tu-backend.onrender.com/api
+  ```
+- **Verificación**: Inspecciona el Network tab del navegador para ver qué URL está usando
 
 ### Build Fallido:
 - Revisa los logs en la pestaña "Events"

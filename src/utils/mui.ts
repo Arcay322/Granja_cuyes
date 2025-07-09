@@ -7,7 +7,7 @@
 // Componentes base
 export { default as Box } from '@mui/material/Box';
 export { default as Container } from '@mui/material/Container';
-export { default as Grid } from '@mui/material/Grid';
+export { default as Grid } from '@mui/material/Grid2';
 export { default as Paper } from '@mui/material/Paper';
 export { default as Card } from '@mui/material/Card';
 export { default as CardContent } from '@mui/material/CardContent';

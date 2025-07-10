@@ -4,7 +4,7 @@ import { Request } from 'express';
 // y le añade la propiedad 'user' que nosotros insertamos en el middleware.
 export interface AuthenticatedRequest extends Request {
     user?: {
-        userId: number;
+        id: number;
         email: string;
         rol: string;
         // Añade aquí cualquier otro campo que venga en tu payload de JWT

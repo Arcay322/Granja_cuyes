@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 // Importar rutas de todos los módulos
 import alimentosRoutes from './routes/alimentacion/alimentos.routes';
 import authRoutes from './routes/auth.routes';
@@ -21,11 +22,20 @@ import saludRoutes from './routes/salud/salud.routes';
 import ventasRoutes from './routes/ventas/ventas.routes';
 // Importar middleware
 import { errorHandler } from './middlewares/errorHandler';
+import logger from './utils/logger';
+import { swaggerUi, swaggerSpec } from './utils/swagger';
 
 dotenv.config();
 
 const app = express();
 app.use(helmet());
+app.use(compression());
+
+// Middleware de logging
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`, { method: req.method, url: req.url });
+  next();
+});
 
 // Configuración de CORS para desarrollo y producción
 const getAllowedOrigins = () => {
@@ -119,6 +129,13 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(apiLimiter);
 
+// Excluir /api/docs y /api/docs/ del rate limiting
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/docs')) return next();
+  apiLimiter(req, res, next);
+});
+
 // Registrar rutas de cada módulo
 app.use('/api/cuyes', cuyesRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
@@ -157,3 +174,5 @@ app.listen(PORT, () => {
     console.log(`Servidor backend escuchando en puerto ${PORT}`);
   }
 });
+
+export { app };

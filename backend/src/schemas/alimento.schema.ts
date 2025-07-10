@@ -19,3 +19,35 @@ export const updateAlimentoSchema = z.object({
         }),
     }),
 });
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     AlimentoInput:
+ *       type: object
+ *       properties:
+ *         nombre:
+ *           type: string
+ *           example: Alfalfa
+ *         descripcion:
+ *           type: string
+ *           example: Forraje verde
+ *         unidad:
+ *           type: string
+ *           example: kg
+ *         stock:
+ *           type: number
+ *           example: 100
+ *         costoUnitario:
+ *           type: number
+ *           example: 2.5
+ *         proveedorId:
+ *           type: integer
+ *           example: 1
+ *       required:
+ *         - nombre
+ *         - unidad
+ *         - stock
+ *         - costoUnitario
+ */

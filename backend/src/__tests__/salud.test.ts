@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '../index';
+import { app } from '../index';
 
 describe('GET /api/salud', () => {
     it('debería responder con un array de registros de salud (200)', async () => {

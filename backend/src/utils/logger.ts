@@ -1,8 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+import { createLogger, format, transports } from 'winston';
 
-export function logger(req: Request, res: Response, next: NextFunction) {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`${req.method} ${req.url}`);
-  }
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.errors({ stack: true }),
+    format.splat(),
+    format.json()
+  ),
+  defaultMeta: { service: 'cuyes-backend' },
+  transports: [
+    new transports.Console({ format: format.simple() }),
+    new transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new transports.File({ filename: 'logs/combined.log' })
+  ]
+});
+
+export default logger;
+
+export function logRequest(req: Request, res: Response, next: NextFunction) {
+  logger.info(`${req.method} ${req.url}`);
   next();
 }

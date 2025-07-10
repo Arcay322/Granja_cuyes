@@ -1,5 +1,5 @@
 import request from 'supertest';
-import app from '../index';
+import { app } from '../index';
 
 describe('API Endpoints principales', () => {
     it('GET /api/salud debe responder 200 y array', async () => {

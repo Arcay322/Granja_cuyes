@@ -1,6 +1,16 @@
 # SUMAQ UYWA - Sistema de Gestión Integral de Granja de Cuyes 🐹
 
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E=16.x-brightgreen)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/postgresql-%3E=13.x-blue)](https://www.postgresql.org/)
+
 Una aplicación web fullstack moderna para la administración completa de granjas de cuyes, con herramientas para gestión de inventario, alimentación, salud, ventas, gastos y reproducción.
+
+---
+
+🔗 **Documentación API Swagger:** [http://localhost:4000/api/docs](http://localhost:4000/api/docs)
+
+---
 
 ## 🚀 Tecnologías
 
@@ -17,6 +27,9 @@ Una aplicación web fullstack moderna para la administración completa de granja
 - **PostgreSQL** como base de datos principal
 - **JWT** para autenticación
 - **bcrypt** para hash de contraseñas
+- **Swagger/OpenAPI** para documentación automática
+- **Winston** para logging avanzado
+- **Helmet, CORS, Rate Limiting, Compression** para seguridad y performance
 
 ## 📁 Estructura del Proyecto
 
@@ -38,6 +51,42 @@ sumaq-uywa/
 │   │   └── utils/           # Utilidades del backend
 │   └── prisma/              # Esquemas y migraciones
 └── public/                  # Archivos estáticos
+```
+
+## 🌐 Tabla de Endpoints Principales
+
+| Método | Endpoint                | Descripción                        | Auth |
+|--------|-------------------------|------------------------------------|------|
+| POST   | /api/auth/login         | Iniciar sesión                     | ❌   |
+| POST   | /api/auth/register      | Registrar usuario                  | ❌   |
+| GET    | /api/cuyes              | Listar cuyes                       | ✅   |
+| POST   | /api/cuyes              | Crear cuy                          | ✅   |
+| PUT    | /api/cuyes/:id          | Actualizar cuy                     | ✅   |
+| DELETE | /api/cuyes/:id          | Eliminar cuy                       | ✅   |
+| GET    | /api/gastos             | Listar gastos                      | ✅   |
+| POST   | /api/gastos             | Crear gasto                        | ✅   |
+| PUT    | /api/gastos/:id         | Actualizar gasto                   | ✅   |
+| DELETE | /api/gastos/:id         | Eliminar gasto                     | ✅   |
+| GET    | /api/alimentos          | Listar alimentos                   | ✅   |
+| POST   | /api/alimentos          | Crear alimento                     | ✅   |
+| PUT    | /api/alimentos/:id      | Actualizar alimento                | ✅   |
+| DELETE | /api/alimentos/:id      | Eliminar alimento                  | ✅   |
+| GET    | /api/dashboard/metrics  | Métricas generales                 | ✅   |
+| GET    | /api/health             | Health check                       | ❌   |
+
+*Consulta la [documentación Swagger](http://localhost:4000/api/docs) para ver todos los endpoints y detalles.*
+
+## 🧑‍💻 Ejemplo de uso de la API
+
+```bash
+# Login y obtención de token
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@demo.com","password":"123456"}'
+
+# Usar el token para acceder a un endpoint protegido
+curl -X GET http://localhost:4000/api/cuyes \
+  -H "Authorization: Bearer <tu_token>"
 ```
 
 ## 🛠️ Instalación y Configuración
@@ -152,50 +201,36 @@ npm run prisma:generate  # Generar cliente Prisma
 npm run prisma:migrate   # Ejecutar migraciones
 ```
 
-## 🌐 API Endpoints
+## 🧪 Testing
 
-### Autenticación
-- `POST /api/auth/login` - Iniciar sesión
-- `POST /api/auth/register` - Registrar usuario
+```bash
+# Ejecutar todos los tests del backend
+cd backend
+npm run test
+```
+- Los tests usan Jest y Supertest.
+- Los resultados se muestran en consola.
 
-### Cuyes
-- `GET /api/cuyes` - Listar cuyes
-- `POST /api/cuyes` - Crear cuy
-- `PUT /api/cuyes/:id` - Actualizar cuy
-- `DELETE /api/cuyes/:id` - Eliminar cuy
+## 🏗️ Migraciones y Seeders
 
-### Gastos
-- `GET /api/gastos` - Listar gastos
-- `POST /api/gastos` - Crear gasto
-- `PUT /api/gastos/:id` - Actualizar gasto
-- `DELETE /api/gastos/:id` - Eliminar gasto
+```bash
+# Crear una nueva migración
+npx prisma migrate dev --name <nombre>
 
-*Para más endpoints, consultar la documentación de API*
+# Poblar la base de datos con datos de ejemplo
+npx prisma db seed
+```
 
-## 📱 Características Responsivas
+## ❓ FAQ
 
-La aplicación está optimizada para dispositivos móviles con:
-- Diseño adaptativo en todas las pantallas
-- Sidebar colapsable en móvil
-- Tablas con scroll horizontal
-- Formularios optimizados para móvil
-- Navegación táctil mejorada
-
-## 🔒 Seguridad
-
-- Autenticación JWT
-- Contraseñas hasheadas con bcrypt
-- Validación de datos en frontend y backend
-- Middlewares de seguridad
-- Variables de entorno para datos sensibles
-
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+- **¿Por qué recibo 'Token requerido' en Swagger?**
+  - Debes hacer login y usar el botón Authorize para enviar tu JWT.
+- **¿Cómo restauro el entorno completo?**
+  - Sigue la sección "Restaurar entorno completo" al final de este README.
+- **¿Dónde está la documentación de la API?**
+  - En `/api/docs` (Swagger UI).
+- **¿Cómo contribuyo?**
+  - Lee la sección "Contribuir".
 
 ## 📝 Variables de Entorno
 
@@ -259,9 +294,10 @@ Si encuentras algún problema, por favor crea un issue en GitHub describiendo:
 - Screenshots si es aplicable
 - Información del entorno (OS, navegador, versión de Node)
 
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+## 📄 Otros documentos útiles
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [RENDER_DEPLOYMENT_GUIDE.md](RENDER_DEPLOYMENT_GUIDE.md)
+- [LICENSE](LICENSE)
 
 ## 👨‍💻 Autor
 
@@ -288,3 +324,7 @@ Si necesitas restaurar la versión estable del proyecto:
    npm install
    ```
 3. Inicia backend y frontend normalmente según la documentación.
+
+## 🙏 Créditos y agradecimientos
+- Inspirado por la comunidad open source.
+- Gracias a todos los testers y usuarios que reportan bugs y proponen mejoras.

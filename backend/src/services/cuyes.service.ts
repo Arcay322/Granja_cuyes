@@ -15,14 +15,21 @@ export const getCuyByIdService = async (id: number): Promise<Cuy | null> => {
 };
 
 export const createCuyService = async (data: CuyInput): Promise<Cuy> => {
-  // Asegurarse de que las fechas estén en formato correcto
+  // Asegurarse de que las fechas estén en formato correcto y que todos los campos requeridos estén presentes
   const formattedData = {
     ...data,
     ...(data.fechaNacimiento && {
       fechaNacimiento: new Date(data.fechaNacimiento)
     })
   };
-  return prisma.cuy.create({ data: formattedData });
+  // Validar y forzar campos obligatorios
+  const requiredFields = ['raza', 'sexo', 'galpon', 'jaula', 'estado'];
+  for (const field of requiredFields) {
+    if (!(field in formattedData)) {
+      throw new Error(`Falta el campo obligatorio: ${field}`);
+    }
+  }
+  return prisma.cuy.create({ data: formattedData as any });
 };
 
 export const updateCuyService = async (id: number, data: Partial<CuyInput>): Promise<Cuy> => {

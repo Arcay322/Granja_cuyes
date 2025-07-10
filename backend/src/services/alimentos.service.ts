@@ -46,7 +46,7 @@ export const createAlimento = async (data: AlimentoInput): Promise<Alimento> => 
   }
 
   return prisma.alimento.create({
-    data,
+    data: data as any, // Forzar el tipo para evitar conflicto de tipado
     include: {
       proveedor: true
     }
@@ -60,8 +60,8 @@ export const updateAlimento = async (id: number, data: Partial<AlimentoInput>): 
   // Conversión de tipos
   if (data.stock !== undefined) data.stock = Number(data.stock);
   if (data.costoUnitario !== undefined) data.costoUnitario = Number(data.costoUnitario);
-  // Eliminar proveedorId si existe en data para evitar errores de relación
-  if (data.proveedorId !== undefined) {
+  // Eliminar proveedorId si es undefined para cumplir con el tipo de Prisma
+  if (typeof data.proveedorId === 'undefined') {
     delete data.proveedorId;
   }
   return prisma.alimento.update({

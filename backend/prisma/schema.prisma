@@ -27,11 +27,6 @@ model Cuy {
   historialSalud     HistorialSalud[]
   movimientos        Movimiento[]
   ventaDetalle       VentaDetalle[]
-
-  @@index([galpon])
-  @@index([jaula])
-  @@index([estado])
-  @@index([fechaNacimiento])
 }
 
 model Camada {
@@ -44,18 +39,6 @@ model Camada {
   prenezId        Int?     @unique
   prenez          Prenez?  @relation(fields: [prenezId], references: [id])
   cuyes           Cuy[]
-}
-
-model Prenez {
-  id                 Int       @id @default(autoincrement())
-  madreId            Int
-  padreId            Int?
-  fechaPrenez        DateTime
-  fechaProbableParto DateTime
-  notas              String?
-  estado             String    @default("activa")
-  fechaCompletada    DateTime?
-  camada             Camada?
 }
 
 model Movimiento {
@@ -78,8 +61,6 @@ model Alimento {
   costoUnitario Float
   proveedor     Proveedor         @relation(fields: [proveedorId], references: [id])
   consumo       ConsumoAlimento[]
-
-  @@index([proveedorId])
 }
 
 model ConsumoAlimento {
@@ -95,6 +76,8 @@ model Proveedor {
   id        Int        @id @default(autoincrement())
   nombre    String
   contacto  String
+  telefono  String?
+  direccion String?
   alimentos Alimento[]
 }
 
@@ -108,6 +91,7 @@ model HistorialSalud {
   medicamento String?
   dosis       String?
   duracion    String?
+  tratamiento String?
   cuy         Cuy      @relation(fields: [cuyId], references: [id])
 }
 
@@ -116,6 +100,8 @@ model Cliente {
   nombre    String
   contacto  String
   direccion String
+  telefono  String?
+  email     String?
   ventas    Venta[]
 }
 
@@ -127,9 +113,6 @@ model Venta {
   estadoPago String
   cliente    Cliente        @relation(fields: [clienteId], references: [id])
   detalles   VentaDetalle[]
-
-  @@index([fecha])
-  @@index([clienteId])
 }
 
 model VentaDetalle {
@@ -142,6 +125,14 @@ model VentaDetalle {
   venta          Venta @relation(fields: [ventaId], references: [id])
 }
 
+model Gasto {
+  id        Int      @id @default(autoincrement())
+  concepto  String
+  fecha     DateTime
+  monto     Float
+  categoria String
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -149,13 +140,14 @@ model User {
   createdAt DateTime @default(now())
 }
 
-model Gasto {
-  id        Int      @id @default(autoincrement())
-  concepto  String
-  fecha     DateTime
-  monto     Float
-  categoria String
-
-  @@index([fecha])
-  @@index([categoria])
+model Prenez {
+  id                 Int      @id @default(autoincrement())
+  madreId            Int
+  padreId            Int?
+  fechaPrenez        DateTime
+  fechaProbableParto DateTime
+  notas              String?
+  estado             String   @default("activa")
+  fechaCompletada    DateTime?
+  camada             Camada?
 }

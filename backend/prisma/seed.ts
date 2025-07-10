@@ -86,11 +86,11 @@ async function main() {
 
   // Crear cuyes adultos para reproducción
   const fechaActual = new Date('2025-07-05');
-  
+
   // Calcular fecha hace 8 meses para cuyes adultos
   const fechaAdultos = new Date(fechaActual);
   fechaAdultos.setMonth(fechaAdultos.getMonth() - 8);
-  
+
   // Cuyes hembras adultas
   const madre1 = await prisma.cuy.create({
     data: {

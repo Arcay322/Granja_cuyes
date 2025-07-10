@@ -1,25 +1,23 @@
-import express from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import cookieParser from 'cookie-parser';
+import express from 'express';
 // Importar rutas de todos los módulos
+import alimentosRoutes from './routes/alimentacion/alimentos.routes';
+import authRoutes from './routes/auth.routes';
+import clientesRoutes from './routes/clientes/clientes.routes';
+import dashboardRoutes from './routes/dashboard/dashboard.routes';
+import debugRoutes from './routes/debug.routes';
+import etapasRoutes from './routes/etapas.routes';
+import galponesRoutes from './routes/galpones.routes';
+import gastosRoutes from './routes/gastos/gastos.routes';
 import cuyesRoutes from './routes/inventario/cuyes.routes';
 import proveedoresRoutes from './routes/inventario/proveedores.routes';
-import alimentosRoutes from './routes/alimentacion/alimentos.routes';
-import saludRoutes from './routes/salud/salud.routes';
-import ventasRoutes from './routes/ventas/ventas.routes';
-import clientesRoutes from './routes/clientes/clientes.routes';
-import gastosRoutes from './routes/gastos/gastos.routes';
-import dashboardRoutes from './routes/dashboard/dashboard.routes';
 import camadasRoutes from './routes/reproduccion/camadas.routes';
 import prenezRoutes from './routes/reproduccion/prenez.routes';
-import galponesRoutes from './routes/galpones.routes';
-import etapasRoutes from './routes/etapas.routes';
-import debugRoutes from './routes/debug.routes';
-import authRoutes from './routes/auth.routes';
+import saludRoutes from './routes/salud/salud.routes';
+import ventasRoutes from './routes/ventas/ventas.routes';
 // Importar middleware
-import { logger } from './utils/logger';
-import { errorHandler } from './middlewares/errorHandler';
 
 dotenv.config();
 
@@ -98,13 +96,11 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('🎯 CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
 }
 
-app.use(cors(corsOptions));
+// CORS y middlewares
 app.use(express.json());
 app.use(cookieParser());
-app.use(logger);
-
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+// app.use(logger);
+app.use(cors(corsOptions));
 
 // Registrar rutas de cada módulo
 app.use('/api/cuyes', cuyesRoutes);
@@ -136,7 +132,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.use(errorHandler);
+// app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

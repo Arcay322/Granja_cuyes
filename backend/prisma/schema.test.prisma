@@ -1,0 +1,148 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = "file:./test.db"
+}
+
+model Cuy {
+    id                 Int              @id @default(autoincrement())
+    raza               String
+    fechaNacimiento    DateTime
+    sexo               String
+    peso               Float
+    galpon             String
+    jaula              String
+    estado             String
+    camadaId           Int?
+    fechaRegistro      DateTime         @default(now())
+    fechaVenta         DateTime?
+    fechaFallecimiento DateTime?
+    etapaVida          String           @default("Cría")
+    proposito          String           @default("Indefinido")
+    ultimaEvaluacion   DateTime?
+    camada             Camada?          @relation(fields: [camadaId], references: [id])
+    historialSalud     HistorialSalud[]
+    movimientos        Movimiento[]
+    ventaDetalle       VentaDetalle[]
+}
+
+model Camada {
+    id              Int      @id @default(autoincrement())
+    fechaNacimiento DateTime
+    numVivos        Int
+    numMuertos      Int
+    padreId         Int?
+    madreId         Int?
+    prenezId        Int?     @unique
+    prenez          Prenez?  @relation(fields: [prenezId], references: [id])
+    cuyes           Cuy[]
+}
+
+model Prenez {
+    id                 Int       @id @default(autoincrement())
+    madreId            Int
+    padreId            Int?
+    fechaPrenez        DateTime
+    fechaProbableParto DateTime
+    notas              String?
+    estado             String    @default("activa")
+    fechaCompletada    DateTime?
+    camada             Camada?
+}
+
+model Movimiento {
+    id      Int      @id @default(autoincrement())
+    cuyId   Int
+    fecha   DateTime
+    origen  String
+    destino String
+    motivo  String
+    cuy     Cuy      @relation(fields: [cuyId], references: [id])
+}
+
+model Alimento {
+    id            Int               @id @default(autoincrement())
+    nombre        String
+    descripcion   String
+    unidad        String
+    proveedorId   Int
+    stock         Float
+    costoUnitario Float
+    proveedor     Proveedor         @relation(fields: [proveedorId], references: [id])
+    consumo       ConsumoAlimento[]
+}
+
+model ConsumoAlimento {
+    id         Int      @id @default(autoincrement())
+    galpon     String
+    fecha      DateTime
+    alimentoId Int
+    cantidad   Float
+    alimento   Alimento @relation(fields: [alimentoId], references: [id])
+}
+
+model Proveedor {
+    id        Int        @id @default(autoincrement())
+    nombre    String
+    contacto  String
+    alimentos Alimento[]
+}
+
+model HistorialSalud {
+    id          Int      @id @default(autoincrement())
+    cuyId       Int
+    tipo        String
+    fecha       DateTime
+    descripcion String
+    veterinario String
+    medicamento String?
+    dosis       String?
+    duracion    String?
+    cuy         Cuy      @relation(fields: [cuyId], references: [id])
+}
+
+model Cliente {
+    id        Int     @id @default(autoincrement())
+    nombre    String
+    contacto  String
+    direccion String
+    ventas    Venta[]
+}
+
+model Venta {
+    id         Int            @id @default(autoincrement())
+    fecha      DateTime
+    clienteId  Int
+    total      Float
+    estadoPago String
+    cliente    Cliente        @relation(fields: [clienteId], references: [id])
+    detalles   VentaDetalle[]
+}
+
+model VentaDetalle {
+    id             Int   @id @default(autoincrement())
+    ventaId        Int
+    cuyId          Int
+    peso           Float
+    precioUnitario Float
+    cuy            Cuy   @relation(fields: [cuyId], references: [id])
+    venta          Venta @relation(fields: [ventaId], references: [id])
+}
+
+model User {
+    id        Int      @id @default(autoincrement())
+    email     String   @unique
+    password  String
+    createdAt DateTime @default(now())
+}
+
+model Gasto {
+    id        Int      @id @default(autoincrement())
+    concepto  String
+    fecha     DateTime
+    monto     Float
+    categoria String
+}

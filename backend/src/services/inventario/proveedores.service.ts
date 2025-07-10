@@ -22,7 +22,9 @@ export const deleteProveedor = async (id: number): Promise<boolean> => {
     const deleted = await prisma.proveedor.delete({ where: { id } });
     return !!deleted;
   } catch (error) {
-    console.error('Error al eliminar proveedor:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('Error al eliminar proveedor:', error);
+    }
     return false;
   }
 };

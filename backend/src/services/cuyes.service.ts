@@ -19,9 +19,11 @@ export const createCuyService = async (data: Partial<Cuy>): Promise<Cuy> => {
       fechaNacimiento: new Date(data.fechaNacimiento)
     })
   };
-  
-  console.log(`Creando cuy con fecha: ${formattedData.fechaNacimiento}`);
-  
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Creando cuy con fecha: ${formattedData.fechaNacimiento}`);
+  }
+
   return prisma.cuy.create({ data: formattedData as Cuy });
 };
 
@@ -34,9 +36,11 @@ export const updateCuyService = async (id: number, data: Partial<Cuy>): Promise<
       fechaNacimiento: new Date(data.fechaNacimiento)
     })
   };
-  
-  console.log(`Actualizando cuy #${id} con fecha: ${formattedData.fechaNacimiento}`);
-  
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Actualizando cuy #${id} con fecha: ${formattedData.fechaNacimiento}`);
+  }
+
   return prisma.cuy.update({ where: { id }, data: formattedData });
 };
 

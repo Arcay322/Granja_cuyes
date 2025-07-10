@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 // Importar rutas de todos los módulos
 import cuyesRoutes from './routes/inventario/cuyes.routes';
 import proveedoresRoutes from './routes/inventario/proveedores.routes';
@@ -29,8 +30,8 @@ const getAllowedOrigins = () => {
   const baseOrigins = [
     'https://sumaq-uywa-frontend.onrender.com',
     'https://sumaq-uywa-fontend.onrender.com',  // URL real del frontend desplegado
-    'http://localhost:3000', 
-    'http://localhost:5173', 
+    'http://localhost:3000',
+    'http://localhost:5173',
     'http://localhost:5174'
   ];
 
@@ -41,36 +42,44 @@ const getAllowedOrigins = () => {
       baseOrigins.push(corsOrigin);
     }
   }
-  
+
   return baseOrigins;
 };
 
 const corsOptions = {
   origin: function (origin: string | undefined, callback: Function) {
     const allowedOrigins = getAllowedOrigins();
-    
-    console.log('🔍 CORS Request - Origin:', origin);
-    console.log('🔍 CORS Request - Allowed:', allowedOrigins);
-    
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 CORS Request - Origin:', origin);
+      console.log('🔍 CORS Request - Allowed:', allowedOrigins);
+    }
+
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) {
-      console.log('✅ CORS: Allowing request with no origin');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ CORS: Allowing request with no origin');
+      }
       return callback(null, true);
     }
-    
+
     if (allowedOrigins.includes(origin)) {
-      console.log('✅ CORS: Origin allowed:', origin);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ CORS: Origin allowed:', origin);
+      }
       callback(null, true);
     } else {
-      console.log('❌ CORS: Origin blocked:', origin);
-      console.log('❌ CORS: Expected one of:', allowedOrigins);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('❌ CORS: Origin blocked:', origin);
+        console.log('❌ CORS: Expected one of:', allowedOrigins);
+      }
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
+    'Content-Type',
     'Authorization',
     'X-Requested-With',
     'Accept',
@@ -83,12 +92,15 @@ const corsOptions = {
 };
 
 // Debug: Mostrar orígenes permitidos
-console.log('🌐 CORS Origins permitidos:', getAllowedOrigins());
-console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
-console.log('🎯 CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🌐 CORS Origins permitidos:', getAllowedOrigins());
+  console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
+  console.log('🎯 CORS_ORIGIN env var:', process.env.CORS_ORIGIN);
+}
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 app.use(logger);
 
 // Handle preflight requests explicitly
@@ -116,8 +128,8 @@ app.get('/', (req, res) => {
 
 // Health check endpoint para Render
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     message: 'API funcionando correctamente',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
@@ -128,5 +140,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Servidor backend escuchando en puerto ${PORT}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Servidor backend escuchando en puerto ${PORT}`);
+  }
 });

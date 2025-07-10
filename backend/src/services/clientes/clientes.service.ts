@@ -22,7 +22,9 @@ export const deleteCliente = async (id: number): Promise<boolean> => {
     const deleted = await prisma.cliente.delete({ where: { id } });
     return !!deleted;
   } catch (error) {
-    console.error('Error al eliminar cliente:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('Error al eliminar cliente:', error);
+    }
     return false;
   }
 };

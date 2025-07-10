@@ -13,9 +13,9 @@ export const getAlimentoById = async (id: number): Promise<Alimento | null> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de alimento inválido');
   }
-  return prisma.alimento.findUnique({ 
-    where: { 
-      id: Number(id) 
+  return prisma.alimento.findUnique({
+    where: {
+      id: Number(id)
     },
     include: {
       proveedor: true
@@ -29,16 +29,16 @@ export const createAlimento = async (data: any): Promise<Alimento> => {
   if (!data.proveedorId) {
     data.proveedorId = 1;
   }
-  
+
   // Convertir valores numéricos si vienen como strings
   if (data.stock && typeof data.stock === 'string') {
     data.stock = Number(data.stock);
   }
-  
+
   if (data.costoUnitario && typeof data.costoUnitario === 'string') {
     data.costoUnitario = Number(data.costoUnitario);
   }
-  
+
   // Verificar si existe el proveedor o crearlo
   try {
     await prisma.proveedor.findUnique({
@@ -54,8 +54,8 @@ export const createAlimento = async (data: any): Promise<Alimento> => {
       }
     });
   }
-  
-  return prisma.alimento.create({ 
+
+  return prisma.alimento.create({
     data,
     include: {
       proveedor: true
@@ -67,25 +67,25 @@ export const updateAlimento = async (id: number, data: any): Promise<Alimento | 
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de alimento inválido');
   }
-  
+
   // Convertir valores numéricos si vienen como strings
   if (data.stock && typeof data.stock === 'string') {
     data.stock = Number(data.stock);
   }
-  
+
   if (data.costoUnitario && typeof data.costoUnitario === 'string') {
     data.costoUnitario = Number(data.costoUnitario);
   }
-  
+
   // Eliminar proveedorId si existe en data para evitar errores de relación
   if (data.proveedorId !== undefined) {
     delete data.proveedorId;
   }
-  
-  return prisma.alimento.update({ 
-    where: { 
-      id: Number(id) 
-    }, 
+
+  return prisma.alimento.update({
+    where: {
+      id: Number(id)
+    },
     data,
     include: {
       proveedor: true
@@ -97,16 +97,18 @@ export const deleteAlimento = async (id: number): Promise<boolean> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de alimento inválido');
   }
-  
+
   try {
-    const deleted = await prisma.alimento.delete({ 
-      where: { 
-        id: Number(id) 
-      } 
+    const deleted = await prisma.alimento.delete({
+      where: {
+        id: Number(id)
+      }
     });
     return !!deleted;
   } catch (error) {
-    console.error('Error al eliminar alimento:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('Error al eliminar alimento:', error);
+    }
     return false;
   }
 };

@@ -18,6 +18,17 @@ export const login = async (req: Request, res: Response) => {
   if (!user) return res.status(400).json({ message: 'Usuario no encontrado' });
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(400).json({ message: 'Contraseña incorrecta' });
-  const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET as string, { expiresIn: '1d' });
-  res.json({ token });
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    process.env.JWT_SECRET as string,
+    { expiresIn: '1h' }
+  );
+  // Set cookie segura
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 1000 // 1 hora
+  });
+  res.json({ success: true, token });
 };

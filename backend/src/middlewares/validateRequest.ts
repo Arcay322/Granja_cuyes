@@ -6,6 +6,13 @@ export const validateRequest = (schema: ZodSchema<any>) => (req: Request, res: R
     schema.parse(req.body);
     next();
   } catch (err: any) {
-    res.status(400).json({ message: 'Datos inválidos', errors: err.errors });
+    // Mejorar la estructura de errores para el frontend
+    res.status(400).json({
+      message: 'Datos inválidos',
+      errors: err.errors?.map((e: any) => ({
+        path: e.path,
+        message: e.message
+      })) || err.errors
+    });
   }
 };

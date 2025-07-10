@@ -18,6 +18,7 @@ import prenezRoutes from './routes/reproduccion/prenez.routes';
 import saludRoutes from './routes/salud/salud.routes';
 import ventasRoutes from './routes/ventas/ventas.routes';
 // Importar middleware
+import { errorHandler } from './middlewares/errorHandler';
 
 dotenv.config();
 
@@ -132,7 +133,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// app.use(errorHandler);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

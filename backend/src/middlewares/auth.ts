@@ -8,9 +8,10 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   const tokenFromCookie = req.cookies?.token;
   const token = tokenFromHeader || tokenFromCookie;
   if (!token) return res.status(401).json({ message: 'Token requerido' });
-  jwt.verify(token, process.env.JWT_SECRET as string, (err: jwt.VerifyErrors | null, user: string | JwtPayload | undefined) => {
+  jwt.verify(token, process.env.JWT_SECRET as string, (err: jwt.VerifyErrors | null, decoded: any) => {
     if (err) return res.status(403).json({ message: 'Token inválido' });
-    (req as any).user = user;
+    // Asumimos que el payload del JWT tiene la forma del tipo extendido en express.d.ts
+    req.user = decoded;
     next();
   });
 }

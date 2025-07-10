@@ -1,7 +1,11 @@
 import express from 'express';
 import * as prenezController from '../../controllers/reproduccion/prenez.controller';
+import { authenticateToken } from '../../middlewares/auth';
 
 const router = express.Router();
+
+// Proteger todas las rutas de prenez con autenticación
+router.use(authenticateToken);
 
 // Rutas para gestionar preñeces
 router.get('/', prenezController.getAll);

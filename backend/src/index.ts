@@ -2,6 +2,8 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 // Importar rutas de todos los módulos
 import alimentosRoutes from './routes/alimentacion/alimentos.routes';
 import authRoutes from './routes/auth.routes';
@@ -23,6 +25,7 @@ import { errorHandler } from './middlewares/errorHandler';
 dotenv.config();
 
 const app = express();
+app.use(helmet());
 
 // Configuración de CORS para desarrollo y producción
 const getAllowedOrigins = () => {
@@ -90,6 +93,18 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+// Configuración de rate limiting global
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Límite de 100 requests por IP
+  standardHeaders: true, // Devuelve info de rate limit en headers estándar
+  legacyHeaders: false, // Desactiva headers obsoletos
+  message: {
+    status: 429,
+    error: 'Demasiadas solicitudes, por favor intente más tarde.'
+  }
+});
+
 // Debug: Mostrar orígenes permitidos
 if (process.env.NODE_ENV !== 'production') {
   console.log('🌐 CORS Origins permitidos:', getAllowedOrigins());
@@ -102,6 +117,7 @@ app.use(express.json());
 app.use(cookieParser());
 // app.use(logger);
 app.use(cors(corsOptions));
+app.use(apiLimiter);
 
 // Registrar rutas de cada módulo
 app.use('/api/cuyes', cuyesRoutes);

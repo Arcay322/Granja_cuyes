@@ -1,4 +1,5 @@
 import { PrismaClient, HistorialSalud } from '@prisma/client';
+import { HistorialSaludInput } from '../../types/historialSalud.types';
 const prisma = new PrismaClient();
 
 export const getAllHistorial = async (): Promise<HistorialSalud[]> => {
@@ -10,6 +11,9 @@ export const getAllHistorial = async (): Promise<HistorialSalud[]> => {
 };
 
 export const getHistorialById = async (id: number): Promise<HistorialSalud | null> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de historial inválido'), { status: 400, isOperational: true });
+  }
   return prisma.historialSalud.findUnique({
     where: { id },
     include: {
@@ -18,17 +22,13 @@ export const getHistorialById = async (id: number): Promise<HistorialSalud | nul
   });
 };
 
-export const createHistorial = async (data: any): Promise<HistorialSalud> => {
-  // Formatear la fecha si viene como string
+export const createHistorial = async (data: HistorialSaludInput): Promise<HistorialSalud> => {
   if (data.fecha && typeof data.fecha === 'string') {
     data.fecha = new Date(data.fecha);
   }
-
-  // Asegurar que cuyId es un número
   if (data.cuyId && typeof data.cuyId === 'string') {
     data.cuyId = Number(data.cuyId);
   }
-
   return prisma.historialSalud.create({
     data,
     include: {
@@ -37,17 +37,16 @@ export const createHistorial = async (data: any): Promise<HistorialSalud> => {
   });
 };
 
-export const updateHistorial = async (id: number, data: any): Promise<HistorialSalud | null> => {
-  // Formatear la fecha si viene como string
+export const updateHistorial = async (id: number, data: Partial<HistorialSaludInput>): Promise<HistorialSalud | null> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de historial inválido'), { status: 400, isOperational: true });
+  }
   if (data.fecha && typeof data.fecha === 'string') {
     data.fecha = new Date(data.fecha);
   }
-
-  // Asegurar que cuyId es un número
   if (data.cuyId && typeof data.cuyId === 'string') {
     data.cuyId = Number(data.cuyId);
   }
-
   return prisma.historialSalud.update({
     where: { id },
     data,
@@ -58,13 +57,13 @@ export const updateHistorial = async (id: number, data: any): Promise<HistorialS
 };
 
 export const deleteHistorial = async (id: number): Promise<boolean> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de historial inválido'), { status: 400, isOperational: true });
+  }
   try {
     const deleted = await prisma.historialSalud.delete({ where: { id } });
     return !!deleted;
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('Error al eliminar historial de salud:', error);
-    }
-    return false;
+    throw Object.assign(new Error('No se pudo eliminar el registro de salud'), { status: 404, isOperational: true });
   }
 };

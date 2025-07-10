@@ -1,4 +1,5 @@
 import { PrismaClient, Cuy } from '@prisma/client';
+import { CuyInput } from '../types/cuy.types';
 
 const prisma = new PrismaClient();
 
@@ -7,43 +8,39 @@ export const getAllCuyesService = async (): Promise<Cuy[]> => {
 };
 
 export const getCuyByIdService = async (id: number): Promise<Cuy | null> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de cuy inválido'), { status: 400, isOperational: true });
+  }
   return prisma.cuy.findUnique({ where: { id } });
 };
 
-export const createCuyService = async (data: Partial<Cuy>): Promise<Cuy> => {
+export const createCuyService = async (data: CuyInput): Promise<Cuy> => {
   // Asegurarse de que las fechas estén en formato correcto
   const formattedData = {
     ...data,
-    // Si hay fecha de nacimiento, asegurarse de que sea un objeto Date válido
     ...(data.fechaNacimiento && {
       fechaNacimiento: new Date(data.fechaNacimiento)
     })
   };
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`Creando cuy con fecha: ${formattedData.fechaNacimiento}`);
-  }
-
-  return prisma.cuy.create({ data: formattedData as Cuy });
+  return prisma.cuy.create({ data: formattedData });
 };
 
-export const updateCuyService = async (id: number, data: Partial<Cuy>): Promise<Cuy> => {
-  // Asegurarse de que las fechas estén en formato correcto
+export const updateCuyService = async (id: number, data: Partial<CuyInput>): Promise<Cuy> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de cuy inválido'), { status: 400, isOperational: true });
+  }
   const formattedData = {
     ...data,
-    // Si hay fecha de nacimiento, asegurarse de que sea un objeto Date válido
     ...(data.fechaNacimiento && {
       fechaNacimiento: new Date(data.fechaNacimiento)
     })
   };
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`Actualizando cuy #${id} con fecha: ${formattedData.fechaNacimiento}`);
-  }
-
   return prisma.cuy.update({ where: { id }, data: formattedData });
 };
 
 export const deleteCuyService = async (id: number): Promise<void> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw Object.assign(new Error('ID de cuy inválido'), { status: 400, isOperational: true });
+  }
   await prisma.cuy.delete({ where: { id } });
 };

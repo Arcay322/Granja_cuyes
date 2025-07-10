@@ -1,4 +1,5 @@
 import { PrismaClient, Alimento } from '@prisma/client';
+import { AlimentoInput } from '../types/alimento.types';
 const prisma = new PrismaClient();
 
 export const getAllAlimentos = async (): Promise<Alimento[]> => {
@@ -11,7 +12,7 @@ export const getAllAlimentos = async (): Promise<Alimento[]> => {
 
 export const getAlimentoById = async (id: number): Promise<Alimento | null> => {
   if (isNaN(id) || id === undefined || id === null) {
-    throw new Error('ID de alimento inválido');
+    throw Object.assign(new Error('ID de alimento inválido'), { status: 400, isOperational: true });
   }
   return prisma.alimento.findUnique({
     where: {
@@ -23,29 +24,18 @@ export const getAlimentoById = async (id: number): Promise<Alimento | null> => {
   });
 };
 
-export const createAlimento = async (data: any): Promise<Alimento> => {
+export const createAlimento = async (data: AlimentoInput): Promise<Alimento> => {
   // Para simplificar la demo, asignamos un proveedor por defecto (ID 1)
-  // En un sistema completo, esto vendría del frontend
   if (!data.proveedorId) {
     data.proveedorId = 1;
   }
-
-  // Convertir valores numéricos si vienen como strings
-  if (data.stock && typeof data.stock === 'string') {
-    data.stock = Number(data.stock);
-  }
-
-  if (data.costoUnitario && typeof data.costoUnitario === 'string') {
-    data.costoUnitario = Number(data.costoUnitario);
-  }
+  // Conversión de tipos
+  data.stock = Number(data.stock);
+  data.costoUnitario = Number(data.costoUnitario);
 
   // Verificar si existe el proveedor o crearlo
-  try {
-    await prisma.proveedor.findUnique({
-      where: { id: data.proveedorId }
-    });
-  } catch (error) {
-    // Si no existe, crear un proveedor genérico
+  const proveedor = await prisma.proveedor.findUnique({ where: { id: data.proveedorId } });
+  if (!proveedor) {
     await prisma.proveedor.create({
       data: {
         id: 1,
@@ -63,52 +53,32 @@ export const createAlimento = async (data: any): Promise<Alimento> => {
   });
 };
 
-export const updateAlimento = async (id: number, data: any): Promise<Alimento | null> => {
+export const updateAlimento = async (id: number, data: Partial<AlimentoInput>): Promise<Alimento | null> => {
   if (isNaN(id) || id === undefined || id === null) {
-    throw new Error('ID de alimento inválido');
+    throw Object.assign(new Error('ID de alimento inválido'), { status: 400, isOperational: true });
   }
-
-  // Convertir valores numéricos si vienen como strings
-  if (data.stock && typeof data.stock === 'string') {
-    data.stock = Number(data.stock);
-  }
-
-  if (data.costoUnitario && typeof data.costoUnitario === 'string') {
-    data.costoUnitario = Number(data.costoUnitario);
-  }
-
+  // Conversión de tipos
+  if (data.stock !== undefined) data.stock = Number(data.stock);
+  if (data.costoUnitario !== undefined) data.costoUnitario = Number(data.costoUnitario);
   // Eliminar proveedorId si existe en data para evitar errores de relación
   if (data.proveedorId !== undefined) {
     delete data.proveedorId;
   }
-
   return prisma.alimento.update({
-    where: {
-      id: Number(id)
-    },
+    where: { id: Number(id) },
     data,
-    include: {
-      proveedor: true
-    }
+    include: { proveedor: true }
   });
 };
 
 export const deleteAlimento = async (id: number): Promise<boolean> => {
   if (isNaN(id) || id === undefined || id === null) {
-    throw new Error('ID de alimento inválido');
+    throw Object.assign(new Error('ID de alimento inválido'), { status: 400, isOperational: true });
   }
-
   try {
-    const deleted = await prisma.alimento.delete({
-      where: {
-        id: Number(id)
-      }
-    });
+    const deleted = await prisma.alimento.delete({ where: { id: Number(id) } });
     return !!deleted;
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('Error al eliminar alimento:', error);
-    }
-    return false;
+    throw Object.assign(new Error('No se pudo eliminar el alimento'), { status: 404, isOperational: true });
   }
 };

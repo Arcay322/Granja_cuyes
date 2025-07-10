@@ -1,70 +1,60 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import * as clientesService from '../../services/clientes/clientes.service';
+// Recomendación: usar validateRequest en las rutas para validar req.body
 
-export const getAllClientes = async (req: Request, res: Response) => {
+export const getAllClientes = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const clientes = await clientesService.getAllClientes();
     res.json(clientes);
   } catch (error) {
-    console.error('Error en getAllClientes:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(error);
   }
 };
 
-export const getClienteById = async (req: Request, res: Response) => {
+export const getClienteById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
     const cliente = await clientesService.getClienteById(id);
-    
     if (!cliente) {
       return res.status(404).json({ message: 'Cliente no encontrado' });
     }
-    
     res.json(cliente);
   } catch (error) {
-    console.error('Error en getClienteById:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(error);
   }
 };
 
-export const createCliente = async (req: Request, res: Response) => {
+export const createCliente = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const newCliente = await clientesService.createCliente(req.body);
     res.status(201).json(newCliente);
   } catch (error) {
-    console.error('Error en createCliente:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(error);
   }
 };
 
-export const updateCliente = async (req: Request, res: Response) => {
+export const updateCliente = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
     const updatedCliente = await clientesService.updateCliente(id, req.body);
-    
     if (!updatedCliente) {
       return res.status(404).json({ message: 'Cliente no encontrado' });
     }
-    
     res.json(updatedCliente);
   } catch (error) {
-    console.error('Error en updateCliente:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(error);
   }
 };
 
-export const deleteCliente = async (req: Request, res: Response) => {
+export const deleteCliente = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
     const success = await clientesService.deleteCliente(id);
-    
     if (!success) {
-      return res.status(404).json({ message: 'Cliente no encontrado o no se pudo eliminar' });
+      return res.status(404).json({ message: 'Cliente no encontrado' });
     }
-    
-    res.status(204).send();
+    res.json({ message: 'Cliente eliminado' });
   } catch (error) {
-    console.error('Error en deleteCliente:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    next(error);
   }
 };

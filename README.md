@@ -270,3 +270,21 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 ---
 
 ⭐ ¡Si te gusta este proyecto, dale una estrella!
+
+## 🔄 Restaurar entorno completo (backend y frontend)
+
+Si necesitas restaurar la versión estable del proyecto:
+
+1. Clona el repositorio y cambia a la rama develop:
+   ```bash
+   git clone https://github.com/Arcay322/Granja_cuyes.git
+   cd Granja_cuyes
+   git checkout develop
+   ```
+2. Instala dependencias en la raíz y en backend:
+   ```bash
+   npm install
+   cd backend
+   npm install
+   ```
+3. Inicia backend y frontend normalmente según la documentación.

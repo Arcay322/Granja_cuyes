@@ -1,8 +1,16 @@
 import { PrismaClient, Gasto } from '@prisma/client';
 const prisma = new PrismaClient();
 
-export const getAllGastos = async (): Promise<Gasto[]> => {
-  return prisma.gasto.findMany();
+export const getAllGastos = async (
+  skip: number = 0,
+  take: number = 20,
+  select: Partial<Record<keyof Gasto, boolean>> = { id: true, descripcion: true, monto: true, fecha: true, categoria: true }
+): Promise<Gasto[]> => {
+  return prisma.gasto.findMany({
+    skip,
+    take,
+    select
+  });
 };
 
 export const getGastoById = async (id: number): Promise<Gasto | null> => {

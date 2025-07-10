@@ -12,6 +12,9 @@ CREATE TABLE "Cuy" (
     "fechaRegistro" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "fechaVenta" TIMESTAMP(3),
     "fechaFallecimiento" TIMESTAMP(3),
+    "etapaVida" TEXT NOT NULL DEFAULT 'Cría',
+    "proposito" TEXT NOT NULL DEFAULT 'Indefinido',
+    "ultimaEvaluacion" TIMESTAMP(3),
 
     CONSTRAINT "Cuy_pkey" PRIMARY KEY ("id")
 );
@@ -24,8 +27,23 @@ CREATE TABLE "Camada" (
     "numMuertos" INTEGER NOT NULL,
     "padreId" INTEGER,
     "madreId" INTEGER,
+    "prenezId" INTEGER,
 
     CONSTRAINT "Camada_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Prenez" (
+    "id" SERIAL NOT NULL,
+    "madreId" INTEGER NOT NULL,
+    "padreId" INTEGER,
+    "fechaPrenez" TIMESTAMP(3) NOT NULL,
+    "fechaProbableParto" TIMESTAMP(3) NOT NULL,
+    "notas" TEXT,
+    "estado" TEXT NOT NULL DEFAULT 'activa',
+    "fechaCompletada" TIMESTAMP(3),
+
+    CONSTRAINT "Prenez_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -121,6 +139,16 @@ CREATE TABLE "VentaDetalle" (
 );
 
 -- CreateTable
+CREATE TABLE "User" (
+    "id" SERIAL NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Gasto" (
     "id" SERIAL NOT NULL,
     "concepto" TEXT NOT NULL,
@@ -131,8 +159,44 @@ CREATE TABLE "Gasto" (
     CONSTRAINT "Gasto_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
+CREATE INDEX "Cuy_galpon_idx" ON "Cuy"("galpon");
+
+-- CreateIndex
+CREATE INDEX "Cuy_jaula_idx" ON "Cuy"("jaula");
+
+-- CreateIndex
+CREATE INDEX "Cuy_estado_idx" ON "Cuy"("estado");
+
+-- CreateIndex
+CREATE INDEX "Cuy_fechaNacimiento_idx" ON "Cuy"("fechaNacimiento");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Camada_prenezId_key" ON "Camada"("prenezId");
+
+-- CreateIndex
+CREATE INDEX "Alimento_proveedorId_idx" ON "Alimento"("proveedorId");
+
+-- CreateIndex
+CREATE INDEX "Venta_fecha_idx" ON "Venta"("fecha");
+
+-- CreateIndex
+CREATE INDEX "Venta_clienteId_idx" ON "Venta"("clienteId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "Gasto_fecha_idx" ON "Gasto"("fecha");
+
+-- CreateIndex
+CREATE INDEX "Gasto_categoria_idx" ON "Gasto"("categoria");
+
 -- AddForeignKey
 ALTER TABLE "Cuy" ADD CONSTRAINT "Cuy_camadaId_fkey" FOREIGN KEY ("camadaId") REFERENCES "Camada"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Camada" ADD CONSTRAINT "Camada_prenezId_fkey" FOREIGN KEY ("prenezId") REFERENCES "Prenez"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Movimiento" ADD CONSTRAINT "Movimiento_cuyId_fkey" FOREIGN KEY ("cuyId") REFERENCES "Cuy"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -150,7 +214,7 @@ ALTER TABLE "HistorialSalud" ADD CONSTRAINT "HistorialSalud_cuyId_fkey" FOREIGN 
 ALTER TABLE "Venta" ADD CONSTRAINT "Venta_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "Cliente"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "VentaDetalle" ADD CONSTRAINT "VentaDetalle_ventaId_fkey" FOREIGN KEY ("ventaId") REFERENCES "Venta"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "VentaDetalle" ADD CONSTRAINT "VentaDetalle_cuyId_fkey" FOREIGN KEY ("cuyId") REFERENCES "Cuy"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "VentaDetalle" ADD CONSTRAINT "VentaDetalle_cuyId_fkey" FOREIGN KEY ("cuyId") REFERENCES "Cuy"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "VentaDetalle" ADD CONSTRAINT "VentaDetalle_ventaId_fkey" FOREIGN KEY ("ventaId") REFERENCES "Venta"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

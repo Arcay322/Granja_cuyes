@@ -27,6 +27,11 @@ model Cuy {
   historialSalud     HistorialSalud[]
   movimientos        Movimiento[]
   ventaDetalle       VentaDetalle[]
+
+  @@index([galpon])
+  @@index([jaula])
+  @@index([estado])
+  @@index([fechaNacimiento])
 }
 
 model Camada {
@@ -73,6 +78,8 @@ model Alimento {
   costoUnitario Float
   proveedor     Proveedor         @relation(fields: [proveedorId], references: [id])
   consumo       ConsumoAlimento[]
+
+  @@index([proveedorId])
 }
 
 model ConsumoAlimento {
@@ -120,6 +127,9 @@ model Venta {
   estadoPago String
   cliente    Cliente        @relation(fields: [clienteId], references: [id])
   detalles   VentaDetalle[]
+
+  @@index([fecha])
+  @@index([clienteId])
 }
 
 model VentaDetalle {
@@ -145,4 +155,7 @@ model Gasto {
   fecha     DateTime
   monto     Float
   categoria String
+
+  @@index([fecha])
+  @@index([categoria])
 }

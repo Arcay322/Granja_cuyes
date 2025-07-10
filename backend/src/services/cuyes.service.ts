@@ -3,8 +3,16 @@ import { CuyInput } from '../types/cuy.types';
 
 const prisma = new PrismaClient();
 
-export const getAllCuyesService = async (): Promise<Cuy[]> => {
-  return prisma.cuy.findMany();
+export const getAllCuyesService = async (
+  skip: number = 0,
+  take: number = 20,
+  select: Partial<Record<keyof Cuy, boolean>> = { id: true, raza: true, sexo: true, galpon: true, jaula: true, estado: true, fechaNacimiento: true }
+): Promise<Cuy[]> => {
+  return prisma.cuy.findMany({
+    skip,
+    take,
+    select
+  });
 };
 
 export const getCuyByIdService = async (id: number): Promise<Cuy | null> => {

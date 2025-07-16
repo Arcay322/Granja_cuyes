@@ -1,35 +1,35 @@
 import React from 'react';
 import { 
-  Container, Typography, Box, Breadcrumbs, Link, Paper
+  Container, Typography, Box, Breadcrumbs, Link
 } from '../utils/mui';
-import { Home, Warehouse } from '@mui/icons-material';
+import { Home, NavigateNext } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
-import GalponesJaulasNavigator from '../components/GalponesJaulasNavigator';
+import GalponesManagerFixed from '../components/GalponesManagerFixed';
 
 const GalponesPage: React.FC = () => {
   return (
-    <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1, sm: 3 } }}>
-      <Box sx={{ mb: 3 }}>
-        <Breadcrumbs sx={{ mb: 2 }}>
-          <Link component={RouterLink} to="/" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Home fontSize="small" />
-            Inicio
-          </Link>
-          <Typography sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Warehouse fontSize="small" />
-            Gestión por Galpones
-          </Typography>
-        </Breadcrumbs>
-        
-        <Typography variant="h4" fontWeight={600} gutterBottom>
-          Gestión por Galpones y Jaulas
-        </Typography>
-        <Typography variant="body1" color="text.secondary" paragraph>
-          Navega y gestiona tus cuyes organizados por galpones y jaulas para un control más eficiente de la granja.
-        </Typography>
-      </Box>
-
-      <GalponesJaulasNavigator />
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      {/* Migas de pan */}
+      <Breadcrumbs 
+        separator={<NavigateNext fontSize="small" />} 
+        aria-label="breadcrumb"
+        sx={{ mb: 3 }}
+      >
+        <Link
+          underline="hover"
+          color="inherit"
+          component={RouterLink}
+          to="/"
+          sx={{ display: 'flex', alignItems: 'center' }}
+        >
+          <Home sx={{ mr: 0.5 }} fontSize="inherit" />
+          Inicio
+        </Link>
+        <Typography color="text.primary">Galpones</Typography>
+      </Breadcrumbs>
+      
+      {/* Componente principal */}
+      <GalponesManagerFixed />
     </Container>
   );
 };

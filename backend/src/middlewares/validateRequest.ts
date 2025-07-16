@@ -16,3 +16,21 @@ export const validateRequest = (schema: ZodSchema<any>) => (req: Request, res: R
     });
   }
 };
+
+export const validateRequestWithParams = (schema: ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => {
+  try {
+    schema.parse({
+      body: req.body,
+      params: req.params
+    });
+    next();
+  } catch (err: any) {
+    res.status(400).json({
+      message: 'Datos inválidos',
+      errors: err.errors?.map((e: any) => ({
+        path: e.path,
+        message: e.message
+      })) || err.errors
+    });
+  }
+};

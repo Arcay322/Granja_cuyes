@@ -140,6 +140,31 @@ model User {
   createdAt DateTime @default(now())
 }
 
+model Galpon {
+  id              Int      @id @default(autoincrement())
+  nombre          String   @unique
+  descripcion     String?
+  ubicacion       String?
+  capacidadMaxima Int      @default(50)
+  estado          String   @default("Activo")
+  fechaCreacion   DateTime @default(now())
+  jaulas          Jaula[]
+}
+
+model Jaula {
+  id              Int     @id @default(autoincrement())
+  nombre          String
+  galponId        Int
+  galponNombre    String  // Para mantener compatibilidad con el sistema actual
+  descripcion     String?
+  capacidadMaxima Int     @default(10)
+  tipo            String  @default("Estándar") // Cría, Engorde, Reproducción, Cuarentena
+  estado          String  @default("Activo")
+  galpon          Galpon  @relation(fields: [galponId], references: [id])
+  
+  @@unique([galponNombre, nombre])
+}
+
 model Prenez {
   id                 Int      @id @default(autoincrement())
   madreId            Int

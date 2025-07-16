@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Breadcrumbs, Link, Paper, Container, Grid, Card, CardContent, IconButton, Avatar, useTheme, alpha } from "../utils/mui";
+import { Box, Typography, Breadcrumbs, Link, Paper, Container, Grid, Card, CardContent, IconButton, Avatar, useTheme, alpha, Tabs, Tab } from "../utils/mui";
 import AlimentosTable from '../components/AlimentosTable';
-import { LocalDining, Spa, Grass, Science, Analytics } from '@mui/icons-material';
+import ConsumoAlimentosTable from '../components/ConsumoAlimentosTable';
+import { LocalDining, Spa, Grass, Science, Analytics, Restaurant, Inventory } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import { mainCardStyles } from '../theme/SimpleLayoutStyles';
 import api from '../services/api';
@@ -10,6 +11,7 @@ const AlimentosPage = () => {
   const theme = useTheme();
   const [alimentos, setAlimentos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tabValue, setTabValue] = useState(0);
 
   useEffect(() => {
     const fetchAlimentos = async () => {
@@ -143,9 +145,34 @@ const AlimentosPage = () => {
         ))}
       </Grid>
 
-      {/* Componente principal - Tabla de alimentos */}
+      {/* Pestañas para alternar entre Alimentos y Consumo */}
       <Paper sx={mainCardStyles}>
-        <AlimentosTable />
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={(event, newValue) => setTabValue(newValue)}
+            aria-label="pestañas de alimentos"
+          >
+            <Tab 
+              icon={<Inventory />} 
+              label="Inventario de Alimentos" 
+              iconPosition="start"
+              sx={{ minHeight: 60 }}
+            />
+            <Tab 
+              icon={<Restaurant />} 
+              label="Consumo de Alimentos" 
+              iconPosition="start"
+              sx={{ minHeight: 60 }}
+            />
+          </Tabs>
+        </Box>
+        
+        {/* Contenido de las pestañas */}
+        <Box sx={{ p: 0 }}>
+          {tabValue === 0 && <AlimentosTable />}
+          {tabValue === 1 && <ConsumoAlimentosTable />}
+        </Box>
       </Paper>
     </Container>
   );

@@ -7,14 +7,16 @@ import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 // Importar rutas de todos los módulos
 import alimentosRoutes from './routes/alimentacion/alimentos.routes';
+import consumoRoutes from './routes/alimentacion/consumo.routes';
 import authRoutes from './routes/auth.routes';
 import clientesRoutes from './routes/clientes/clientes.routes';
 import dashboardRoutes from './routes/dashboard/dashboard.routes';
 import debugRoutes from './routes/debug.routes';
 import etapasRoutes from './routes/etapas.routes';
-import galponesRoutes from './routes/galpones.routes';
+import galponesOldRoutes from './routes/galpones.routes';
 import gastosRoutes from './routes/gastos/gastos.routes';
 import cuyesRoutes from './routes/inventario/cuyes.routes';
+import galponesRoutes from './routes/inventario/galpones.routes';
 import proveedoresRoutes from './routes/inventario/proveedores.routes';
 import camadasRoutes from './routes/reproduccion/camadas.routes';
 import prenezRoutes from './routes/reproduccion/prenez.routes';
@@ -44,7 +46,8 @@ const getAllowedOrigins = () => {
     'https://sumaq-uywa-fontend.onrender.com',  // URL real del frontend desplegado
     'http://localhost:3000',
     'http://localhost:5173',
-    'http://localhost:5174'
+    'http://localhost:5174',
+    'http://localhost:5175'
   ];
 
   if (process.env.NODE_ENV === 'production') {
@@ -106,7 +109,7 @@ const corsOptions = {
 // Configuración de rate limiting global
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Límite de 100 requests por IP
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en desarrollo, 100 en producción
   standardHeaders: true, // Devuelve info de rate limit en headers estándar
   legacyHeaders: false, // Desactiva headers obsoletos
   message: {
@@ -140,6 +143,7 @@ app.use((req, res, next) => {
 app.use('/api/cuyes', cuyesRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/alimentos', alimentosRoutes);
+app.use('/api/consumo', consumoRoutes);
 app.use('/api/salud', saludRoutes);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/clientes', clientesRoutes);

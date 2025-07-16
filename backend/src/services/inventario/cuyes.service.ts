@@ -11,48 +11,24 @@ const calcularEdadEnMeses = (fechaNacimiento: Date): number => {
   let edadEnMeses = años * 12 + meses;
   if (días < 0) edadEnMeses -= 1;
 
-  const resultado = Math.max(0, edadEnMeses);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`📅 Cálculo edad - Ahora: ${ahora.toISOString()}, Nacimiento: ${fechaNacimiento.toISOString()}, Años: ${años}, Meses: ${meses}, Días: ${días}, Resultado: ${resultado} meses`);
-  }
-
-  return resultado; // No puede ser negativo
+  return Math.max(0, edadEnMeses); // No puede ser negativo
 };
 
 // Función auxiliar para determinar etapa según edad y sexo
 const determinarEtapaAutomatica = (fechaNacimiento: Date, sexo: string): string => {
   const edadEnMeses = calcularEdadEnMeses(fechaNacimiento);
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`🐹 Calculando etapa - Fecha nacimiento: ${fechaNacimiento.toISOString()}, Edad en meses: ${edadEnMeses}, Sexo: ${sexo}`);
-  }
-
   if (edadEnMeses < 3) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('→ Asignando etapa: Cría');
-    }
     return 'Cría';
   } else if (edadEnMeses < 6) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('→ Asignando etapa: Juvenil');
-    }
     return 'Juvenil';
   } else {
     // Cuyes adultos (6+ meses)
     if (sexo === 'M') {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('→ Asignando etapa: Engorde (Macho adulto)');
-      }
       return 'Engorde'; // Por defecto machos van a engorde
     } else if (sexo === 'H') {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('→ Asignando etapa: Reproductora (Hembra adulta)');
-      }
       return 'Reproductora'; // Por defecto hembras van a reproducción
     } else {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('→ Asignando etapa: Juvenil (Sexo indefinido)');
-      }
       return 'Juvenil'; // Si sexo es indefinido, mantener como juvenil
     }
   }
@@ -71,35 +47,57 @@ const determinarPropositoAutomatico = (etapa: string): string => {
   }
 };
 
+// Mantener la función original para compatibilidad
 export const getAllCuyes = async (filters: any = {}): Promise<Cuy[]> => {
   try {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔍 Service: Filtros recibidos:', filters);
-    }
+    const result = await getAllCuyesPaginated(filters, { page: 1, limit: 1000 });
+    return result.cuyes;
+  } catch (error) {
+    console.error('Error en getAllCuyes service:', error);
+    throw error;
+  }
+};
 
+// Nueva función con paginación y filtros avanzados
+export const getAllCuyesPaginated = async (filters: any = {}, pagination: { page: number; limit: number }) => {
+  try {
     // Construir el objeto where para Prisma
     const whereClause: any = {};
 
-    if (filters.galpon) {
-      whereClause.galpon = filters.galpon;
+    // Filtros básicos
+    if (filters.galpon) whereClause.galpon = filters.galpon;
+    if (filters.jaula) whereClause.jaula = filters.jaula;
+    if (filters.raza) whereClause.raza = filters.raza;
+    if (filters.sexo) whereClause.sexo = filters.sexo;
+    if (filters.estado) whereClause.estado = filters.estado;
+    if (filters.etapaVida) whereClause.etapaVida = filters.etapaVida;
+    if (filters.proposito) whereClause.proposito = filters.proposito;
+
+    // Búsqueda global
+    if (filters.search) {
+      whereClause.OR = [
+        { raza: { contains: filters.search, mode: 'insensitive' } },
+        { galpon: { contains: filters.search, mode: 'insensitive' } },
+        { jaula: { contains: filters.search, mode: 'insensitive' } },
+        { estado: { contains: filters.search, mode: 'insensitive' } },
+        { etapaVida: { contains: filters.search, mode: 'insensitive' } },
+        { proposito: { contains: filters.search, mode: 'insensitive' } }
+      ];
     }
 
-    if (filters.jaula) {
-      whereClause.jaula = filters.jaula;
-    }
+    // Calcular offset para paginación
+    const offset = (pagination.page - 1) * pagination.limit;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔍 Service: Where clause generado:', whereClause);
-    }
+    // Obtener total de registros
+    const total = await prisma.cuy.count({ where: whereClause });
 
+    // Obtener cuyes con paginación
     const cuyes = await prisma.cuy.findMany({
       where: whereClause,
-      orderBy: { id: 'asc' }
+      orderBy: { id: 'asc' },
+      skip: offset,
+      take: pagination.limit
     });
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔍 Service: Cuyes encontrados:', cuyes.length);
-    }
 
     // Procesar cada cuy para calcular etapa y propósito automáticamente
     const cuyesConEtapa = cuyes.map(cuy => {
@@ -108,26 +106,30 @@ export const getAllCuyes = async (filters: any = {}): Promise<Cuy[]> => {
 
       return {
         ...cuy,
-        etapaVida: etapaCalculada, // Siempre recalcular la etapa según la edad actual
+        etapaVida: etapaCalculada,
         proposito: cuy.proposito || propositoCalculado,
-        peso: Number(cuy.peso) // Asegurar que el peso sea number
+        peso: Number(cuy.peso)
       };
     });
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔍 Service: Muestra de cuyes procesados:', cuyesConEtapa.slice(0, 3).map(c => ({
-        id: c.id,
-        galpon: c.galpon,
-        jaula: c.jaula,
-        raza: c.raza
-      })));
-    }
+    // Calcular información de paginación
+    const totalPages = Math.ceil(total / pagination.limit);
+    const hasNextPage = pagination.page < totalPages;
+    const hasPrevPage = pagination.page > 1;
 
-    return cuyesConEtapa;
+    return {
+      cuyes: cuyesConEtapa,
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage
+      }
+    };
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('Error en getAllCuyes service:', error);
-    }
+    console.error('Error en getAllCuyesPaginated service:', error);
     throw error;
   }
 };
@@ -456,6 +458,290 @@ export const crearCuyesPorJaula = async (data: RegistroJaulaData): Promise<Cuy[]
     if (process.env.NODE_ENV !== 'production') {
       console.error('Error en crearCuyesPorJaula:', error);
     }
+    throw error;
+  }
+};
+
+// Función para obtener cuyes disponibles para venta
+export const getCuyesDisponiblesParaVenta = async (): Promise<Cuy[]> => {
+  return prisma.cuy.findMany({
+    where: {
+      estado: 'Activo', // Solo cuyes activos
+      fechaVenta: null   // Que no hayan sido vendidos
+    },
+    orderBy: [
+      { galpon: 'asc' },
+      { jaula: 'asc' }
+    ]
+  });
+};
+
+// ===== NUEVAS FUNCIONES AVANZADAS =====
+
+// Estadísticas avanzadas con análisis temporal
+export const getEstadisticasAvanzadas = async (periodo: number = 30) => {
+  try {
+    const fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - periodo);
+
+    // Estadísticas básicas
+    const totalCuyes = await prisma.cuy.count();
+    const cuyesActivos = await prisma.cuy.count({ where: { estado: 'Activo' } });
+    
+    // Distribución por etapa de vida
+    const distribucionEtapas = await prisma.cuy.groupBy({
+      by: ['etapaVida'],
+      where: { estado: 'Activo' },
+      _count: { id: true }
+    });
+
+    // Distribución por propósito
+    const distribucionPropositos = await prisma.cuy.groupBy({
+      by: ['proposito'],
+      where: { estado: 'Activo' },
+      _count: { id: true }
+    });
+
+    // Distribución por galpón
+    const distribucionGalpones = await prisma.cuy.groupBy({
+      by: ['galpon'],
+      where: { estado: 'Activo' },
+      _count: { id: true },
+      _avg: { peso: true }
+    });
+
+    // Análisis de crecimiento (cuyes registrados en el período)
+    const cuyesNuevos = await prisma.cuy.count({
+      where: {
+        fechaRegistro: { gte: fechaInicio }
+      }
+    });
+
+    // Análisis de peso promedio por etapa
+    const pesoPromedioPorEtapa = await prisma.cuy.groupBy({
+      by: ['etapaVida'],
+      where: { estado: 'Activo' },
+      _avg: { peso: true },
+      _count: { id: true }
+    });
+
+    // Cuyes próximos a cambiar de etapa (basado en edad)
+    const tresMesesAtras = new Date();
+    tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+    
+    const cuyesProximosCambio = await prisma.cuy.count({
+      where: {
+        fechaNacimiento: { lte: tresMesesAtras },
+        etapaVida: 'Cría',
+        estado: 'Activo'
+      }
+    });
+
+    return {
+      resumen: {
+        totalCuyes,
+        cuyesActivos,
+        cuyesNuevos,
+        cuyesProximosCambio,
+        periodo
+      },
+      distribucion: {
+        etapas: distribucionEtapas.map(item => ({
+          etapa: item.etapaVida,
+          cantidad: item._count.id
+        })),
+        propositos: distribucionPropositos.map(item => ({
+          proposito: item.proposito,
+          cantidad: item._count.id
+        })),
+        galpones: distribucionGalpones.map(item => ({
+          galpon: item.galpon,
+          cantidad: item._count.id,
+          pesoPromedio: Number(item._avg.peso) || 0
+        }))
+      },
+      analisis: {
+        pesoPromedioPorEtapa: pesoPromedioPorEtapa.map(item => ({
+          etapa: item.etapaVida,
+          pesoPromedio: Number(item._avg.peso) || 0,
+          cantidad: item._count.id
+        }))
+      }
+    };
+  } catch (error) {
+    console.error('Error en getEstadisticasAvanzadas:', error);
+    throw error;
+  }
+};
+
+// Historial de cambios de un cuy específico
+export const getCuyHistorial = async (cuyId: number) => {
+  try {
+    // Obtener el cuy actual
+    const cuy = await prisma.cuy.findUnique({
+      where: { id: cuyId }
+    });
+
+    if (!cuy) {
+      throw new Error('Cuy no encontrado');
+    }
+
+    // Calcular historial de etapas basado en la edad
+    const fechaNacimiento = new Date(cuy.fechaNacimiento);
+    const ahora = new Date();
+    const historialEtapas = [];
+
+    // Calcular fechas aproximadas de cambio de etapa
+    const fechaCria = new Date(fechaNacimiento);
+    const fechaJuvenil = new Date(fechaNacimiento);
+    fechaJuvenil.setMonth(fechaJuvenil.getMonth() + 3);
+    const fechaAdulto = new Date(fechaNacimiento);
+    fechaAdulto.setMonth(fechaAdulto.getMonth() + 6);
+
+    // Construir historial
+    historialEtapas.push({
+      fecha: fechaCria,
+      etapa: 'Cría',
+      descripcion: 'Nacimiento del cuy',
+      tipo: 'etapa'
+    });
+
+    if (ahora >= fechaJuvenil) {
+      historialEtapas.push({
+        fecha: fechaJuvenil,
+        etapa: 'Juvenil',
+        descripcion: 'Transición a etapa juvenil',
+        tipo: 'etapa'
+      });
+    }
+
+    if (ahora >= fechaAdulto) {
+      const etapaAdulta = cuy.sexo === 'M' ? 'Engorde' : 'Reproductora';
+      historialEtapas.push({
+        fecha: fechaAdulto,
+        etapa: etapaAdulta,
+        descripcion: `Transición a ${etapaAdulta.toLowerCase()}`,
+        tipo: 'etapa'
+      });
+    }
+
+    // Agregar eventos de salud si existen
+    const historialSalud = await prisma.historialSalud.findMany({
+      where: { cuyId },
+      orderBy: { fecha: 'asc' }
+    });
+
+    const eventosCompletos = [
+      ...historialEtapas,
+      ...historialSalud.map(evento => ({
+        fecha: evento.fecha,
+        tipo: 'salud',
+        descripcion: `${evento.tipo}: ${evento.descripcion}`,
+        veterinario: evento.veterinario,
+        medicamento: evento.medicamento
+      }))
+    ].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+    return {
+      cuy: {
+        id: cuy.id,
+        raza: cuy.raza,
+        sexo: cuy.sexo,
+        fechaNacimiento: cuy.fechaNacimiento,
+        etapaActual: cuy.etapaVida,
+        propositoActual: cuy.proposito,
+        pesoActual: cuy.peso,
+        estadoActual: cuy.estado
+      },
+      historial: eventosCompletos
+    };
+  } catch (error) {
+    console.error('Error en getCuyHistorial:', error);
+    throw error;
+  }
+};
+
+// Obtener cuyes por etapa de vida
+export const getCuyesPorEtapa = async (etapa: string) => {
+  try {
+    const cuyes = await prisma.cuy.findMany({
+      where: {
+        etapaVida: etapa,
+        estado: 'Activo'
+      },
+      orderBy: [
+        { galpon: 'asc' },
+        { jaula: 'asc' },
+        { fechaNacimiento: 'asc' }
+      ]
+    });
+
+    // Procesar cuyes con información adicional
+    const cuyesConInfo = cuyes.map(cuy => {
+      const edadMeses = calcularEdadEnMeses(cuy.fechaNacimiento);
+      const etapaCalculada = determinarEtapaAutomatica(cuy.fechaNacimiento, cuy.sexo);
+      
+      return {
+        ...cuy,
+        edadMeses,
+        etapaCalculada,
+        necesitaCambio: etapaCalculada !== cuy.etapaVida,
+        peso: Number(cuy.peso)
+      };
+    });
+
+    return cuyesConInfo;
+  } catch (error) {
+    console.error('Error en getCuyesPorEtapa:', error);
+    throw error;
+  }
+};
+
+// Actualizar etapas automáticamente basado en la edad
+export const actualizarEtapasAutomaticamente = async () => {
+  try {
+    // Obtener todos los cuyes activos
+    const cuyes = await prisma.cuy.findMany({
+      where: { estado: 'Activo' }
+    });
+
+    let actualizados = 0;
+    const cambios = [];
+
+    for (const cuy of cuyes) {
+      const etapaCalculada = determinarEtapaAutomatica(cuy.fechaNacimiento, cuy.sexo);
+      const propositoCalculado = determinarPropositoAutomatico(etapaCalculada);
+
+      // Solo actualizar si hay cambios
+      if (etapaCalculada !== cuy.etapaVida || propositoCalculado !== cuy.proposito) {
+        await prisma.cuy.update({
+          where: { id: cuy.id },
+          data: {
+            etapaVida: etapaCalculada,
+            proposito: propositoCalculado,
+            ultimaEvaluacion: new Date()
+          }
+        });
+
+        cambios.push({
+          id: cuy.id,
+          etapaAnterior: cuy.etapaVida,
+          etapaNueva: etapaCalculada,
+          propositoAnterior: cuy.proposito,
+          propositoNuevo: propositoCalculado
+        });
+
+        actualizados++;
+      }
+    }
+
+    return {
+      actualizados,
+      totalRevisados: cuyes.length,
+      cambios
+    };
+  } catch (error) {
+    console.error('Error en actualizarEtapasAutomaticamente:', error);
     throw error;
   }
 };

@@ -17,12 +17,27 @@ import {
   CheckBox, CheckBoxOutlineBlank
 } from '@mui/icons-material';
 import { InputAdornment } from '../utils/mui';
+import CuySelector from './CuySelector';
 
 interface Cliente {
   id: number;
   nombre: string;
   contacto: string;
   direccion: string;
+}
+
+interface VentaDetalle {
+  cuyId: number;
+  peso: number;
+  precioUnitario: number;
+  cuy?: {
+    id: number;
+    raza: string;
+    sexo: string;
+    peso: number;
+    galpon: string;
+    jaula: string;
+  };
 }
 
 interface Venta {
@@ -32,6 +47,7 @@ interface Venta {
   total: number;
   estadoPago: string;
   cliente?: Cliente;
+  detalles?: VentaDetalle[];
 }
 
 const initialForm: Venta = {
@@ -87,6 +103,9 @@ const VentasTable = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  
+  // Estados para el selector de cuyes
+  const [selectedCuyes, setSelectedCuyes] = useState<VentaDetalle[]>([]);
 
   // Hook para confirmación de eliminación
   const deleteConfirmation = useDeleteConfirmation({
@@ -295,12 +314,22 @@ const VentasTable = () => {
     setOpen(false);
     setForm(initialForm);
     setEditId(null);
+    setSelectedCuyes([]);
     setFormErrors({
       clienteId: '',
       fecha: '',
       total: '',
       estadoPago: ''
     });
+  };
+
+  // Funciones para manejar los cuyes seleccionados
+  const handleCuyesChange = (cuyes: VentaDetalle[]) => {
+    setSelectedCuyes(cuyes);
+  };
+
+  const handleTotalChange = (total: number) => {
+    setForm(prev => ({ ...prev, total }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
@@ -327,28 +356,48 @@ const VentasTable = () => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    // Validar que se hayan seleccionado cuyes para nuevas ventas
+    if (!editId && selectedCuyes.length === 0) {
+      toastService.error(
+        'Error de Validación',
+        'Debe seleccionar al menos un cuy para la venta'
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       if (editId) {
+        // Para editar, solo enviamos los datos básicos de la venta
         await api.put(`/ventas/${editId}`, form);
         toastService.success(
           'Venta Actualizada',
           'Venta actualizada exitosamente'
         );
       } else {
-        await api.post('/ventas', form);
+        // Para crear, incluimos los detalles de los cuyes
+        const ventaData = {
+          ...form,
+          detalles: selectedCuyes.map(detalle => ({
+            cuyId: detalle.cuyId,
+            peso: detalle.peso,
+            precioUnitario: detalle.precioUnitario
+          }))
+        };
+        
+        await api.post('/ventas', ventaData);
         toastService.success(
           'Venta Creada',
-          'Venta creada exitosamente'
+          `Venta creada exitosamente con ${selectedCuyes.length} cuy${selectedCuyes.length > 1 ? 'es' : ''}`
         );
       }
       handleClose();
       fetchVentas();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar venta:', error);
       toastService.error(
         'Error al Guardar',
-        'No se pudo guardar la venta'
+        error.response?.data?.message || 'No se pudo guardar la venta'
       );
     } finally {
       setLoading(false);
@@ -568,6 +617,7 @@ const VentasTable = () => {
                 <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Cliente</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Fecha</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>Cuyes</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Estado Pago</TableCell>
                 <TableCell sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
@@ -596,11 +646,33 @@ const VentasTable = () => {
                       <TableCell>{venta.id}</TableCell>
                       <TableCell>{venta.cliente?.nombre || 'N/A'}</TableCell>
                       <TableCell>{new Date(venta.fecha).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {venta.detalles && venta.detalles.length > 0 ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            {venta.detalles.map((detalle, index) => (
+                              <Chip
+                                key={index}
+                                label={`Cuy #${detalle.cuyId} (${detalle.peso}kg)`}
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                              />
+                            ))}
+                            <Typography variant="caption" color="text.secondary">
+                              {venta.detalles.length} cuy{venta.detalles.length > 1 ? 'es' : ''}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Sin detalles
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell>S/ {Number(venta.total).toFixed(2)}</TableCell>
                       <TableCell>
                         <Chip
                           label={venta.estadoPago}
-                          color={getEstadoColor(venta.estadoPago) as any}
+                          color={getEstadoColor(venta.estadoPago) as unknown}
                           size="small"
                         />
                       </TableCell>
@@ -781,6 +853,18 @@ const VentasTable = () => {
                 {formErrors.estadoPago && <FormHelperText>{formErrors.estadoPago}</FormHelperText>}
               </FormControl>
             </Grid>
+            
+            {/* Selector de cuyes - solo para nuevas ventas */}
+            {!editId && (
+              <Grid size={{ xs: 12 }}>
+                <Divider sx={{ my: 2 }} />
+                <CuySelector
+                  selectedCuyes={selectedCuyes}
+                  onCuyesChange={handleCuyesChange}
+                  onTotalChange={handleTotalChange}
+                />
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>

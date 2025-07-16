@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Box, Typography, Breadcrumbs, Link, Container, Paper, Card, CardContent, 
-  Avatar, Alert, useTheme, alpha, Grid
+  Avatar, Alert, useTheme, alpha
 } from '../utils/mui';
 import { DataStateRenderer, ConditionalRender } from '../utils/conditional-render';
 import { Link as RouterLink } from 'react-router-dom';
@@ -54,13 +54,18 @@ const DashboardPage: React.FC = () => {
           api.get('/gastos')
         ]);
         
-        setCuyes(cuyesRes.data);
-        setVentas(ventasRes.data);
-        setGastos(gastosRes.data);
+        // Manejar el formato de respuesta mejorado {success, data, message}
+        setCuyes(cuyesRes.data?.data || cuyesRes.data || []);
+        setVentas(ventasRes.data?.data || ventasRes.data || []);
+        setGastos(gastosRes.data?.data || gastosRes.data || []);
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error al cargar datos del dashboard:', err);
         setError('Error al cargar datos del dashboard');
+        // Asegurar que los arrays se mantengan como arrays vacíos en caso de error
+        setCuyes([]);
+        setVentas([]);
+        setGastos([]);
         setLoading(false);
       }
     };
@@ -133,10 +138,10 @@ const DashboardPage: React.FC = () => {
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
       
       <Container maxWidth={false}>
-        <Grid container spacing={3}>
+        {/* Tarjetas de estadísticas */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 3 }}>
           {statCards.map((card, index) => (
-            <Grid key={index} sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 3' } }}>
-              <Card 
+            <Card key={index} 
                 sx={{ 
                   borderRadius: 3,
                   boxShadow: 3,
@@ -167,180 +172,280 @@ const DashboardPage: React.FC = () => {
                   </Typography>
                 </CardContent>
               </Card>
-            </Grid>
           ))}
+        </Box>
           
-          {/* Gráficos */}
-          <Grid sx={{ gridColumn: { xs: 'span 12', md: 'span 8' } }}>
-            <Paper 
-              sx={{ 
-                p: 3, 
-                borderRadius: 3,
-                boxShadow: 3,
-                height: '100%',
-                minHeight: 400
-              }}
-            >
-              <Typography variant="h6" sx={{ mb: 3 }}>Ventas Mensuales</Typography>
-              <Box sx={{ height: 350 }}>
-                {ventas.length > 0 && (
-                  <Line
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'top',
-                        },
-                        tooltip: {
-                          mode: 'index',
-                          intersect: false,
-                        }
+        {/* Gráficos */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 3, mb: 3 }}>
+          <Paper 
+            sx={{ 
+              p: 3, 
+              borderRadius: 3,
+              boxShadow: 3,
+              height: '100%',
+              minHeight: 400
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 3 }}>Ventas Mensuales</Typography>
+            <Box sx={{ height: 350 }}>
+              {ventas.length > 0 && (
+                <Line
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top',
                       },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return 'S/. ' + value;
-                            }
+                      tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                      }
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          callback: function(value) {
+                            return 'S/. ' + value;
                           }
                         }
                       }
-                    }}
-                    data={{
-                      labels: ventasPorMesLabels,
-                      datasets: [
-                        {
-                          label: 'Ventas',
-                          data: ventasPorMesData,
-                          borderColor: theme.palette.primary.main,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.5),
-                          tension: 0.3,
-                        }
-                      ]
-                    }}
-                  />
-                )}
-                {ventas.length === 0 && !loading && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                    <Typography>No hay datos de ventas disponibles</Typography>
-                  </Box>
-                )}
-              </Box>
-            </Paper>
-          </Grid>
-          
-          <Grid sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
-            <Paper 
-              sx={{ 
-                p: 3, 
-                borderRadius: 3,
-                boxShadow: 3,
-                height: '100%',
-                minHeight: 400,
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
-              <Typography variant="h6" sx={{ mb: 3 }}>Distribución de Cuyes</Typography>
-              <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {cuyes.length > 0 && (
-                  <Doughnut
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                        }
+                    }
+                  }}
+                  data={{
+                    labels: ventasPorMesLabels,
+                    datasets: [
+                      {
+                        label: 'Ventas',
+                        data: ventasPorMesData,
+                        borderColor: theme.palette.primary.main,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.5),
+                        tension: 0.3,
                       }
-                    }}
-                    data={{
-                      labels: ['Machos', 'Hembras'],
-                      datasets: [
-                        {
-                          data: cuyesPorSexoData,
-                          backgroundColor: [
-                            theme.palette.info.main,
-                            theme.palette.success.main,
-                          ],
-                          borderColor: [
-                            theme.palette.info.dark,
-                            theme.palette.success.dark,
-                          ],
-                          borderWidth: 1,
-                        }
-                      ]
-                    }}
-                  />
-                )}
-                {cuyes.length === 0 && !loading && (
-                  <Typography>No hay datos de cuyes disponibles</Typography>
-                )}
-              </Box>
-            </Paper>
-          </Grid>
+                    ]
+                  }}
+                />
+              )}
+              {ventas.length === 0 && !loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography>No hay datos de ventas disponibles</Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
           
-          <Grid sx={{ gridColumn: 'span 12' }}>
-            <Paper 
-              sx={{ 
-                p: 3, 
-                borderRadius: 3,
-                boxShadow: 3,
-                minHeight: 350
-              }}
-            >
-              <Typography variant="h6" sx={{ mb: 3 }}>Gastos por Categoría</Typography>
-              <Box sx={{ height: 300 }}>
-                {gastos.length > 0 && (
-                  <Bar
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'top',
-                        },
-                        tooltip: {
-                          mode: 'index',
-                          intersect: false,
-                        }
+          <Paper 
+            sx={{ 
+              p: 3, 
+              borderRadius: 3,
+              boxShadow: 3,
+              height: '100%',
+              minHeight: 400,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 3 }}>Distribución de Cuyes</Typography>
+            <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {cuyes.length > 0 && (
+                <Doughnut
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'bottom',
+                      }
+                    }
+                  }}
+                  data={{
+                    labels: ['Machos', 'Hembras'],
+                    datasets: [
+                      {
+                        data: cuyesPorSexoData,
+                        backgroundColor: [
+                          theme.palette.info.main,
+                          theme.palette.success.main,
+                        ],
+                        borderColor: [
+                          theme.palette.info.dark,
+                          theme.palette.success.dark,
+                        ],
+                        borderWidth: 1,
+                      }
+                    ]
+                  }}
+                />
+              )}
+              {cuyes.length === 0 && !loading && (
+                <Typography>No hay datos de cuyes disponibles</Typography>
+              )}
+            </Box>
+          </Paper>
+        </Box>
+          
+        {/* Gráfico de gastos y tabla de cuyes recientes */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3, mb: 3 }}>
+          <Paper 
+            sx={{ 
+              p: 3, 
+              borderRadius: 3,
+              boxShadow: 3,
+              minHeight: 350
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 3 }}>Gastos por Categoría</Typography>
+            <Box sx={{ height: 300 }}>
+              {gastos.length > 0 && (
+                <Bar
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top',
                       },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return 'S/. ' + value;
-                            }
+                      tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                      }
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          callback: function(value) {
+                            return 'S/. ' + value;
                           }
                         }
                       }
+                    }
+                  }}
+                  data={{
+                    labels: gastosPorCategoriaLabels,
+                    datasets: [
+                      {
+                        label: 'Monto',
+                        data: gastosPorCategoriaData,
+                        backgroundColor: alpha(theme.palette.warning.main, 0.7),
+                        borderColor: theme.palette.warning.main,
+                        borderWidth: 1,
+                      }
+                    ]
+                  }}
+                />
+              )}
+              {gastos.length === 0 && !loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography>No hay datos de gastos disponibles</Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+
+          {/* Tabla de cuyes recientes */}
+          <Paper 
+            sx={{ 
+              p: 3, 
+              borderRadius: 3,
+              boxShadow: 3,
+              minHeight: 350
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">Cuyes Recientes</Typography>
+              <Link 
+                component={RouterLink} 
+                to="/cuyes" 
+                sx={{ 
+                  textDecoration: 'none',
+                  color: theme.palette.primary.main,
+                  fontWeight: 'medium',
+                  '&:hover': { textDecoration: 'underline' }
+                }}
+              >
+                Ver todos →
+              </Link>
+            </Box>
+            
+            {cuyes.length > 0 ? (
+              <Box sx={{ maxHeight: 280, overflow: 'auto' }}>
+                {cuyes.slice(0, 5).map((cuy, index) => (
+                  <Box 
+                    key={cuy.id || index}
+                    sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      py: 2,
+                      borderBottom: index < 4 ? '1px solid #f0f0f0' : 'none'
                     }}
-                    data={{
-                      labels: gastosPorCategoriaLabels,
-                      datasets: [
-                        {
-                          label: 'Monto',
-                          data: gastosPorCategoriaData,
-                          backgroundColor: alpha(theme.palette.warning.main, 0.7),
-                          borderColor: theme.palette.warning.main,
-                          borderWidth: 1,
-                        }
-                      ]
-                    }}
-                  />
-                )}
-                {gastos.length === 0 && !loading && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                    <Typography>No hay datos de gastos disponibles</Typography>
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar 
+                        sx={{ 
+                          width: 32, 
+                          height: 32,
+                          bgcolor: cuy.sexo === 'M' ? theme.palette.info.main : theme.palette.success.main
+                        }}
+                      >
+                        <PetsIcon fontSize="small" />
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" fontWeight="medium">
+                          Cuy #{cuy.id || `Temp-${index}`}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {cuy.raza || 'Sin raza'} • {cuy.galpon || 'Sin galpón'}-{cuy.jaula || 'Sin jaula'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" fontWeight="medium">
+                        {cuy.peso || 0} kg
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: cuy.estado === 'Activo' ? theme.palette.success.main : 
+                                cuy.estado === 'Enfermo' ? theme.palette.error.main : 
+                                theme.palette.text.secondary
+                        }}
+                      >
+                        {cuy.estado || 'Sin estado'}
+                      </Typography>
+                    </Box>
                   </Box>
-                )}
+                ))}
               </Box>
-            </Paper>
-          </Grid>
-        </Grid>
+            ) : (
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                height: 200,
+                color: 'text.secondary'
+              }}>
+                <PetsIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                <Typography variant="body2">No hay cuyes registrados</Typography>
+                <Link 
+                  component={RouterLink} 
+                  to="/cuyes" 
+                  sx={{ 
+                    mt: 1,
+                    textDecoration: 'none',
+                    color: theme.palette.primary.main,
+                    fontWeight: 'medium'
+                  }}
+                >
+                  Registrar primer cuy
+                </Link>
+              </Box>
+            )}
+          </Paper>
+        </Box>
       </Container>
     </Box>
   );

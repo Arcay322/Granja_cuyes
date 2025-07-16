@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNotificationService } from '../services/notificationService';
+import toastService from '../services/toastService';
 
 interface UseDeleteConfirmationProps {
   onDelete: (id: number) => Promise<void>;
@@ -17,7 +17,6 @@ export const useDeleteConfirmation = ({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const notificationService = useNotificationService();
 
   const handleDeleteClick = (id: number) => {
     setDeleteId(id);
@@ -30,7 +29,7 @@ export const useDeleteConfirmation = ({
     setLoading(true);
     try {
       await onDelete(deleteId);
-      notificationService.success(
+      toastService.success(
         'Eliminación Exitosa',
         successMessage || `${itemName} eliminado correctamente`
       );
@@ -38,7 +37,7 @@ export const useDeleteConfirmation = ({
       setDeleteId(null);
     } catch (error) {
       console.error(`Error al eliminar ${itemName}:`, error);
-      notificationService.error(
+      toastService.error(
         'Error al Eliminar',
         errorMessage || `No se pudo eliminar el ${itemName.toLowerCase()}`
       );

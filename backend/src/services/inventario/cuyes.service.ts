@@ -48,7 +48,18 @@ const determinarPropositoAutomatico = (etapa: string): string => {
 };
 
 // Mantener la función original para compatibilidad
-export const getAllCuyes = async (filters: any = {}): Promise<Cuy[]> => {
+interface CuyFilters {
+  galpon?: string;
+  jaula?: string;
+  raza?: string;
+  sexo?: string;
+  estado?: string;
+  etapaVida?: string;
+  proposito?: string;
+  search?: string;
+}
+
+export const getAllCuyes = async (filters: CuyFilters = {}): Promise<Cuy[]> => {
   try {
     const result = await getAllCuyesPaginated(filters, { page: 1, limit: 1000 });
     return result.cuyes;
@@ -59,10 +70,10 @@ export const getAllCuyes = async (filters: any = {}): Promise<Cuy[]> => {
 };
 
 // Nueva función con paginación y filtros avanzados
-export const getAllCuyesPaginated = async (filters: any = {}, pagination: { page: number; limit: number }) => {
+export const getAllCuyesPaginated = async (filters: CuyFilters = {}, pagination: { page: number; limit: number }) => {
   try {
     // Construir el objeto where para Prisma
-    const whereClause: any = {};
+    const whereClause: Record<string, unknown> = {};
 
     // Filtros básicos
     if (filters.galpon) whereClause.galpon = filters.galpon;
@@ -145,7 +156,21 @@ export const getCuyById = async (id: number): Promise<Cuy | null> => {
   });
 };
 
-export const createCuy = async (data: any): Promise<Cuy> => {
+interface CreateCuyData {
+  raza: string;
+  fechaNacimiento: string | Date;
+  sexo: string;
+  peso: number | string;
+  galpon: string;
+  jaula: string;
+  estado: string;
+  etapaVida?: string;
+  proposito?: string;
+  fechaVenta?: string | null;
+  fechaFallecimiento?: string | null;
+}
+
+export const createCuy = async (data: CreateCuyData): Promise<Cuy> => {
   // Ensure fechaNacimiento is a valid Date object and numeric fields are parsed
   const fechaNacimiento = data.fechaNacimiento ? new Date(data.fechaNacimiento) : new Date();
   const peso = typeof data.peso === 'string' ? parseFloat(data.peso) : data.peso;
@@ -156,6 +181,33 @@ export const createCuy = async (data: any): Promise<Cuy> => {
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`🆕 Creando cuy: Fecha=${fechaNacimiento.toISOString().split('T')[0]}, Sexo=${data.sexo}, Etapa=${etapaVida}, Propósito=${proposito}`);
+  }
+
+  // Verificar y crear galpón si no existe
+  if (data.galpon) {
+    try {
+      const galponExistente = await prisma.galpon.findFirst({
+        where: { nombre: data.galpon }
+      });
+
+      if (!galponExistente) {
+        console.log(`🏠 Creando galpón automáticamente: ${data.galpon}`);
+        await prisma.galpon.create({
+          data: {
+            nombre: data.galpon,
+            descripcion: `Galpón ${data.galpon} creado automáticamente`,
+            ubicacion: `Ubicación del galpón ${data.galpon}`,
+            capacidadMaxima: 50, // Capacidad por defecto
+            estado: 'Activo'
+            // fechaCreacion se establece automáticamente por el schema
+          }
+        });
+        console.log(`✅ Galpón ${data.galpon} creado exitosamente`);
+      }
+    } catch (error) {
+      console.error(`❌ Error al verificar/crear galpón ${data.galpon}:`, error);
+      // Continuar con la creación del cuy aunque falle la creación del galpón
+    }
   }
 
   const sanitizedData = {
@@ -170,7 +222,7 @@ export const createCuy = async (data: any): Promise<Cuy> => {
   return prisma.cuy.create({ data: sanitizedData });
 };
 
-export const updateCuy = async (id: number, data: any): Promise<Cuy | null> => {
+export const updateCuy = async (id: number, data: Partial<CreateCuyData>): Promise<Cuy | null> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de cuy inválido');
   }
@@ -241,7 +293,16 @@ export const deleteCuy = async (id: number): Promise<boolean> => {
   }
 };
 
-export const getCuyesStats = async (): Promise<any> => {
+interface CuyesStatsResponse {
+  total: number;
+  machos: number;
+  hembras: number;
+  crias: number;
+  adultos: number;
+  razas: Array<{raza: string, total: number}>;
+}
+
+export const getCuyesStats = async (): Promise<CuyesStatsResponse> => {
   try {
     // Obtener el total de cuyes
     const totalCuyes = await prisma.cuy.count();
@@ -287,7 +348,7 @@ export const getCuyesStats = async (): Promise<any> => {
     `;
 
     // Convertir BigInt a Number para que sea serializable
-    const razas = (razasResult as any[]).map((item) => ({
+    const razas = (razasResult as Array<{raza: string, total: bigint}>).map((item) => ({
       raza: item.raza,
       total: Number(item.total)
     }));
@@ -742,6 +803,116 @@ export const actualizarEtapasAutomaticamente = async () => {
     };
   } catch (error) {
     console.error('Error en actualizarEtapasAutomaticamente:', error);
+    throw error;
+  }
+};
+// Estadisticas especificas por jaula
+export const getEstadisticasPorJaula = async (galpon: string, jaula: string) => {
+  try {
+    // Obtener todos los cuyes de la jaula específica
+    const cuyes = await prisma.cuy.findMany({
+      where: {
+        galpon: galpon,
+        jaula: jaula
+      }
+    });
+
+    // Calcular estadísticas básicas
+    const total = cuyes.length;
+    const activos = cuyes.filter(c => c.estado === 'Activo').length;
+    const machos = cuyes.filter(c => c.sexo === 'M').length;
+    const hembras = cuyes.filter(c => c.sexo === 'H').length;
+    const crias = cuyes.filter(c => c.etapaVida === 'Cría').length;
+
+    // Calcular cuyes nuevos (últimos 7 días)
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() - 7);
+    const nuevos = cuyes.filter(c => 
+      c.fechaRegistro && new Date(c.fechaRegistro) >= fechaLimite
+    ).length;
+
+    // Calcular cuyes próximos a cambio de etapa
+    let proximosCambio = 0;
+    cuyes.forEach(cuy => {
+      if (cuy.estado === 'Activo') {
+        const etapaCalculada = determinarEtapaAutomatica(cuy.fechaNacimiento, cuy.sexo);
+        if (etapaCalculada !== cuy.etapaVida) {
+          proximosCambio++;
+        }
+      }
+    });
+
+    // Distribución por etapas
+    const etapas = cuyes.reduce((acc, cuy) => {
+      const etapa = cuy.etapaVida;
+      acc[etapa] = (acc[etapa] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const distribucionEtapas = Object.entries(etapas).map(([etapa, cantidad]) => ({
+      etapa,
+      cantidad
+    }));
+
+    // Distribución por propósitos
+    const propositos = cuyes.reduce((acc, cuy) => {
+      const proposito = cuy.proposito;
+      acc[proposito] = (acc[proposito] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const distribucionPropositos = Object.entries(propositos).map(([proposito, cantidad]) => ({
+      proposito,
+      cantidad
+    }));
+
+    // Análisis de peso por etapa
+    const pesosPorEtapa = cuyes.reduce((acc, cuy) => {
+      const etapa = cuy.etapaVida;
+      if (!acc[etapa]) {
+        acc[etapa] = [];
+      }
+      acc[etapa].push(Number(cuy.peso));
+      return acc;
+    }, {} as Record<string, number[]>);
+
+    const pesoPromedioPorEtapa = Object.entries(pesosPorEtapa).map(([etapa, pesos]) => ({
+      etapa,
+      pesoPromedio: pesos.length > 0 ? pesos.reduce((a, b) => a + b, 0) / pesos.length : 0,
+      cantidad: pesos.length
+    }));
+
+    return {
+      resumen: {
+        totalCuyes: total,
+        cuyesActivos: activos,
+        cuyesNuevos: nuevos,
+        cuyesProximosCambio: proximosCambio,
+        periodo: 7 // días
+      },
+      distribucion: {
+        etapas: distribucionEtapas,
+        propositos: distribucionPropositos,
+        galpones: [{
+          galpon: galpon,
+          cantidad: total,
+          pesoPromedio: cuyes.length > 0 ? 
+            cuyes.reduce((sum, c) => sum + Number(c.peso), 0) / cuyes.length : 0
+        }]
+      },
+      analisis: {
+        pesoPromedioPorEtapa
+      },
+      detallesJaula: {
+        galpon,
+        jaula,
+        capacidadUtilizada: total,
+        estadoGeneral: activos === total ? 'Óptimo' : 
+                      activos / total > 0.8 ? 'Bueno' : 'Requiere atención'
+      }
+    };
+  } catch (error) {
+    console.error('Error en getEstadisticasPorJaula:', error);
     throw error;
   }
 };

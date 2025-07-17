@@ -3,16 +3,18 @@ import {
   Box, Typography, Card, CardContent, Avatar, Chip, Button, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel,
   Select, MenuItem, Alert, CircularProgress, useTheme, alpha, Badge, 
-  LinearProgress, Paper, Divider, IconButton, Tooltip, Stack
+  LinearProgress, Paper, Divider, IconButton, Tooltip, Stack, Breadcrumbs
 } from '../utils/mui';
 import {
   Home, Add, Edit, Delete, Analytics, Warning, Groups, TrendingUp, 
-  Inventory, Close
+  Inventory, Close, ArrowBack, Pets, ViewModule
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import CuyesManagerFixed from './CuyesManagerFixed';
 
 interface Galpon {
   id: number;
@@ -41,6 +43,15 @@ interface Jaula {
   capacidadMaxima: number;
   tipo: string;
   estado: string;
+  ocupacion?: {
+    totalCuyes: number;
+    cuyesActivos: number;
+    cuyesEnfermos: number;
+    capacidadMaxima: number;
+    porcentajeOcupacion: number;
+    estadoOcupacion: string;
+    espaciosLibres: number;
+  };
 }
 
 interface GalponForm {
@@ -84,9 +95,16 @@ const tipoJaulaOptions = ['Estándar', 'Cría', 'Engorde', 'Reproducción', 'Cua
 
 const GalponesManagerFixed: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [galpones, setGalpones] = useState<Galpon[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGalpon, setSelectedGalpon] = useState<Galpon | null>(null);
+  
+  // Estados para navegación jerárquica
+  const [currentView, setCurrentView] = useState<'galpones' | 'jaulas' | 'cuyes'>('galpones');
+  const [selectedJaula, setSelectedJaula] = useState<Jaula | null>(null);
+  const [jaulasDelGalpon, setJaulasDelGalpon] = useState<Jaula[]>([]);
+  const [jaulasCuyes, setJaulasCuyes] = useState<unknown[]>([]);
   
   // Estados para diálogos
   const [openGalponDialog, setOpenGalponDialog] = useState(false);
@@ -115,7 +133,7 @@ const GalponesManagerFixed: React.FC = () => {
         await api.delete(`/galpones/${id}`);
         fetchGalpones();
         toastService.success('Galpón eliminado', 'El galpón ha sido eliminado exitosamente');
-      } catch (error: any) {
+      } catch (error: unknown) {
         const errorMsg = error.response?.data?.error || 'No se pudo eliminar el galpón';
         toastService.error('Error al eliminar', errorMsg);
       }
@@ -133,7 +151,7 @@ const GalponesManagerFixed: React.FC = () => {
         }
         fetchGalpones();
         toastService.success('Jaula eliminada', 'La jaula ha sido eliminada exitosamente');
-      } catch (error: any) {
+      } catch (error: unknown) {
         const errorMsg = error.response?.data?.error || 'No se pudo eliminar la jaula';
         toastService.error('Error al eliminar', errorMsg);
       }
@@ -306,7 +324,7 @@ const GalponesManagerFixed: React.FC = () => {
       }
       setOpenGalponDialog(false);
       fetchGalpones();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al guardar galpón:', error);
       const errorMsg = error.response?.data?.error || 'No se pudo guardar el galpón';
       toastService.error('Error al guardar', errorMsg);
@@ -331,7 +349,7 @@ const GalponesManagerFixed: React.FC = () => {
       if (selectedGalpon) {
         fetchGalponDetails(selectedGalpon.id);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al guardar jaula:', error);
       const errorMsg = error.response?.data?.error || 'No se pudo guardar la jaula';
       toastService.error('Error al guardar', errorMsg);
@@ -344,6 +362,57 @@ const GalponesManagerFixed: React.FC = () => {
     if (porcentaje >= 90) return 'error';
     if (porcentaje >= 70) return 'warning';
     return 'success';
+  };
+
+  // Funciones para navegación jerárquica
+  const handleGalponClick = async (galpon: Galpon) => {
+    try {
+      setLoading(true);
+      setSelectedGalpon(galpon);
+      
+      // Obtener jaulas del galpón
+      const response = await api.get(`/galpones/${galpon.nombre}/jaulas`);
+      const jaulas = response.data.data || response.data;
+      setJaulasDelGalpon(jaulas);
+      
+      setCurrentView('jaulas');
+    } catch (error) {
+      console.error('Error al obtener jaulas:', error);
+      toastService.error('Error', 'No se pudieron cargar las jaulas del galpón');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJaulaClick = async (jaula: Jaula) => {
+    try {
+      setLoading(true);
+      setSelectedJaula(jaula);
+      
+      // Obtener cuyes de la jaula específica con filtros aplicados en el backend
+      const response = await api.get(`/cuyes?galpon=${jaula.galponNombre}&jaula=${jaula.nombre}&limit=1000`);
+      const cuyes = response.data.data || [];
+      setJaulasCuyes(cuyes);
+      
+      setCurrentView('cuyes');
+    } catch (error) {
+      console.error('Error al obtener cuyes:', error);
+      toastService.error('Error', 'No se pudieron cargar los cuyes de la jaula');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToGalpones = () => {
+    setCurrentView('galpones');
+    setSelectedGalpon(null);
+    setJaulasDelGalpon([]);
+  };
+
+  const handleBackToJaulas = () => {
+    setCurrentView('jaulas');
+    setSelectedJaula(null);
+    setJaulasCuyes([]);
   };
 
   if (loading && galpones.length === 0) {
@@ -422,121 +491,383 @@ const GalponesManagerFixed: React.FC = () => {
         </Box>
       </Paper>
 
-      {/* Lista de galpones */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
-        {galpones.map((galpon) => (
-          <Card key={galpon.id} sx={{ 
-            height: '100%',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: 4
-            }
-          }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-                  Galpón {galpon.nombre}
+      {/* Breadcrumbs de navegación */}
+      {currentView !== 'galpones' && (
+        <Paper sx={{ p: 2, mb: 3, bgcolor: alpha(theme.palette.grey[100], 0.5) }}>
+          <Breadcrumbs separator="›" sx={{ mb: 1 }}>
+            <Button
+              startIcon={<Home />}
+              onClick={handleBackToGalpones}
+              sx={{ textTransform: 'none', color: 'primary.main' }}
+            >
+              Galpones
+            </Button>
+            {currentView === 'jaulas' && selectedGalpon && (
+              <Typography color="text.primary" sx={{ fontWeight: 'medium' }}>
+                Galpón {selectedGalpon.nombre}
+              </Typography>
+            )}
+            {currentView === 'cuyes' && selectedGalpon && selectedJaula && (
+              <>
+                <Button
+                  startIcon={<ViewModule />}
+                  onClick={handleBackToJaulas}
+                  sx={{ textTransform: 'none', color: 'primary.main' }}
+                >
+                  Galpón {selectedGalpon.nombre}
+                </Button>
+                <Typography color="text.primary" sx={{ fontWeight: 'medium' }}>
+                  Jaula {selectedJaula.nombre}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <Badge 
-                    badgeContent={
-                      galpon.alertas.sobrepoblacion || galpon.alertas.cuyesEnfermos > 0 ? '!' : 0
-                    } 
-                    color="error"
+              </>
+            )}
+          </Breadcrumbs>
+          
+          <Button
+            startIcon={<ArrowBack />}
+            onClick={currentView === 'jaulas' ? handleBackToGalpones : handleBackToJaulas}
+            size="small"
+            sx={{ mt: 1 }}
+          >
+            Volver
+          </Button>
+        </Paper>
+      )}
+
+      {/* Vista de Galpones */}
+      {currentView === 'galpones' && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
+          {galpones.map((galpon) => (
+            <Card key={galpon.id} sx={{ 
+              height: '100%',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              cursor: 'pointer',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: 4
+              }
+            }}>
+              <CardContent onClick={() => handleGalponClick(galpon)}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
+                    Galpón {galpon.nombre}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Badge 
+                      badgeContent={
+                        galpon.alertas.sobrepoblacion || galpon.alertas.cuyesEnfermos > 0 ? '!' : 0
+                      } 
+                      color="error"
+                    >
+                      <Chip 
+                        label={galpon.estado} 
+                        color={galpon.estado === 'Activo' ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </Badge>
+                    <Tooltip title="Editar galpón">
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenGalponDialog(galpon);
+                        }}
+                        sx={{ color: theme.palette.primary.main }}
+                      >
+                        <Edit fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar galpón">
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteConfirmation.handleDeleteClick(galpon.id);
+                        }}
+                        sx={{ color: theme.palette.error.main }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {galpon.descripcion || 'Sin descripción'}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  📍 {galpon.ubicacion || 'Ubicación no especificada'}
+                </Typography>
+
+                <Box sx={{ my: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">
+                      Ocupación: {galpon.totalCuyes}/{galpon.capacidadMaxima}
+                    </Typography>
+                    <Typography variant="body2">
+                      {(galpon.porcentajeOcupacion || 0).toFixed(1)}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={Math.min(galpon.porcentajeOcupacion || 0, 100)}
+                    color={getOcupacionColor(galpon.porcentajeOcupacion || 0) as unknown}
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+                  <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
+                    <Typography variant="h6">{galpon.totalJaulas}</Typography>
+                    <Typography variant="caption">Jaulas</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
+                    <Typography variant="h6">{galpon.totalCuyes}</Typography>
+                    <Typography variant="caption">Cuyes</Typography>
+                  </Box>
+                </Box>
+
+                {/* Alertas */}
+                {(galpon.alertas.sobrepoblacion || galpon.alertas.cuyesEnfermos > 0 || galpon.alertas.sinCuyes) && (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    {galpon.alertas.sobrepoblacion && <div>⚠️ Sobrepoblación detectada</div>}
+                    {galpon.alertas.cuyesEnfermos > 0 && <div>🏥 {galpon.alertas.cuyesEnfermos} cuyes enfermos</div>}
+                    {galpon.alertas.sinCuyes && <div>📭 Galpón vacío</div>}
+                  </Alert>
+                )}
+
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
+                  <Button 
+                    size="small" 
+                    startIcon={<Add />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenJaulaDialog(galpon);
+                    }}
                   >
-                    <Chip 
-                      label={galpon.estado} 
-                      color={galpon.estado === 'Activo' ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Badge>
-                  <Tooltip title="Editar galpón">
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleOpenGalponDialog(galpon)}
-                      sx={{ color: theme.palette.primary.main }}
+                    Añadir Jaula
+                  </Button>
+                  <Button 
+                    size="small" 
+                    startIcon={<Analytics />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEstadisticasDialog(galpon);
+                    }}
+                  >
+                    Estadísticas
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+      )}
+
+      {/* Vista de Jaulas */}
+      {currentView === 'jaulas' && selectedGalpon && (
+        <Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+              <ViewModule sx={{ mr: 1, verticalAlign: 'middle' }} />
+              Jaulas del Galpón {selectedGalpon.nombre}
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenJaulaDialog(selectedGalpon)}
+              sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#45a049' } }}
+            >
+              Nueva Jaula
+            </Button>
+          </Box>
+
+          {jaulasDelGalpon.length > 0 ? (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
+              {jaulasDelGalpon.map((jaula) => (
+                <Card key={jaula.id} sx={{ 
+                  height: '100%',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold' }}>
+                        Jaula {jaula.nombre}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Chip 
+                          label={jaula.tipo} 
+                          color="primary"
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Tooltip title="Editar jaula">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenJaulaDialog(selectedGalpon, jaula);
+                            }}
+                            sx={{ color: theme.palette.primary.main }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Eliminar jaula">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              jaulaDeleteConfirmation.handleDeleteClick(jaula.id);
+                            }}
+                            sx={{ color: theme.palette.error.main }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
+
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      {jaula.descripcion || 'Sin descripción'}
+                    </Typography>
+
+                    {/* Información de Ocupación */}
+                    <Box sx={{ mt: 2, mb: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          Ocupación
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                          {jaula.ocupacion?.totalCuyes || 0}/{jaula.capacidadMaxima}
+                        </Typography>
+                      </Box>
+                      
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(jaula.ocupacion?.porcentajeOcupacion || 0, 100)}
+                        sx={{
+                          height: 8,
+                          borderRadius: 4,
+                          bgcolor: alpha(theme.palette.grey[300], 0.3),
+                          '& .MuiLinearProgress-bar': {
+                            bgcolor: jaula.ocupacion?.porcentajeOcupacion >= 100 ? '#f44336' :
+                                    jaula.ocupacion?.porcentajeOcupacion >= 80 ? '#ff9800' : '#4caf50'
+                          }
+                        }}
+                      />
+                      
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        {jaula.ocupacion?.estadoOcupacion || 'Normal'} • {jaula.ocupacion?.espaciosLibres || 0} espacios libres
+                      </Typography>
+                    </Box>
+
+                    {/* Estadísticas de Cuyes */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mb: 2 }}>
+                      <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#4caf50', 0.1), borderRadius: 1 }}>
+                        <Typography variant="h6" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                          {jaula.ocupacion?.cuyesActivos || 0}
+                        </Typography>
+                        <Typography variant="caption">Activos</Typography>
+                      </Box>
+                      
+                      <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#ff9800', 0.1), borderRadius: 1 }}>
+                        <Typography variant="h6" sx={{ color: '#ff9800', fontWeight: 'bold' }}>
+                          {jaula.ocupacion?.cuyesEnfermos || 0}
+                        </Typography>
+                        <Typography variant="caption">Enfermos</Typography>
+                      </Box>
+                      
+                      <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#2196f3', 0.1), borderRadius: 1 }}>
+                        <Chip 
+                          label={jaula.estado} 
+                          color={jaula.estado === 'Activo' ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+
+                    {/* Alertas */}
+                    {(jaula.ocupacion?.porcentajeOcupacion >= 100 || jaula.ocupacion?.cuyesEnfermos > 0) && (
+                      <Alert 
+                        severity={jaula.ocupacion?.porcentajeOcupacion >= 100 ? 'error' : 'warning'} 
+                        sx={{ mb: 2, py: 0 }}
+                      >
+                        {jaula.ocupacion?.porcentajeOcupacion >= 100 && (
+                          <div>⚠️ Jaula llena</div>
+                        )}
+                        {jaula.ocupacion?.cuyesEnfermos > 0 && (
+                          <div>🏥 {jaula.ocupacion.cuyesEnfermos} cuyes enfermos</div>
+                        )}
+                      </Alert>
+                    )}
+
+                    <Button 
+                      fullWidth
+                      variant="contained"
+                      startIcon={<Pets />}
+                      sx={{ 
+                        mt: 1,
+                        bgcolor: '#2e7d32',
+                        '&:hover': { bgcolor: '#1b5e20' }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJaulaClick(jaula);
+                      }}
                     >
-                      <Edit fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Eliminar galpón">
-                    <IconButton 
-                      size="small" 
-                      onClick={() => deleteConfirmation.handleDeleteClick(galpon.id)}
-                      sx={{ color: theme.palette.error.main }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {galpon.descripcion || 'Sin descripción'}
+                      Ver Cuyes ({jaula.ocupacion?.totalCuyes || 0})
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No hay jaulas en este galpón
               </Typography>
-
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                📍 {galpon.ubicacion || 'Ubicación no especificada'}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Crea la primera jaula para comenzar a organizar los cuyes
               </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => handleOpenJaulaDialog(selectedGalpon)}
+                sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#45a049' } }}
+              >
+                Crear Primera Jaula
+              </Button>
+            </Box>
+          )}
+        </Box>
+      )}
 
-              <Box sx={{ my: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">
-                    Ocupación: {galpon.totalCuyes}/{galpon.capacidadMaxima}
-                  </Typography>
-                  <Typography variant="body2">
-                    {(galpon.porcentajeOcupacion || 0).toFixed(1)}%
-                  </Typography>
-                </Box>
-                <LinearProgress
-                  variant="determinate"
-                  value={Math.min(galpon.porcentajeOcupacion || 0, 100)}
-                  color={getOcupacionColor(galpon.porcentajeOcupacion || 0) as unknown}
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
-              </Box>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="h6">{galpon.totalJaulas}</Typography>
-                  <Typography variant="caption">Jaulas</Typography>
-                </Box>
-                <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="h6">{galpon.totalCuyes}</Typography>
-                  <Typography variant="caption">Cuyes</Typography>
-                </Box>
-              </Box>
-
-              {/* Alertas */}
-              {(galpon.alertas.sobrepoblacion || galpon.alertas.cuyesEnfermos > 0 || galpon.alertas.sinCuyes) && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  {galpon.alertas.sobrepoblacion && <div>⚠️ Sobrepoblación detectada</div>}
-                  {galpon.alertas.cuyesEnfermos > 0 && <div>🏥 {galpon.alertas.cuyesEnfermos} cuyes enfermos</div>}
-                  {galpon.alertas.sinCuyes && <div>📭 Galpón vacío</div>}
-                </Alert>
-              )}
-
-              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
-                <Button 
-                  size="small" 
-                  startIcon={<Add />}
-                  onClick={() => handleOpenJaulaDialog(galpon)}
-                >
-                  Añadir Jaula
-                </Button>
-                <Button 
-                  size="small" 
-                  startIcon={<Analytics />}
-                  onClick={() => handleOpenEstadisticasDialog(galpon)}
-                >
-                  Estadísticas
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        ))}
-      </Box>
+      {/* Vista de Cuyes Integrada */}
+      {currentView === 'cuyes' && selectedGalpon && selectedJaula && (
+        <CuyesManagerFixed
+          showNewCuyButton={true}
+          showMassiveRegistration={true}
+          showViewToggle={true}
+          showFiltersPanel={false}
+          showStats={true}
+          showTitle={false}
+          showUpdateStagesButton={false}
+          showFiltersButton={false}
+          showRefreshButton={false}
+          showSearchButton={false}
+          presetFilters={{
+            galpon: selectedJaula.galponNombre,
+            jaula: selectedJaula.nombre
+          }}
+          customTitle={`Cuyes en Jaula ${selectedJaula.nombre} - Galpón ${selectedGalpon.nombre}`}
+        />
+      )}
 
       {galpones.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 8 }}>

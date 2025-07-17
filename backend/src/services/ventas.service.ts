@@ -33,32 +33,38 @@ export const getVentaById = async (id: number): Promise<Venta | null> => {
   });
 };
 
-export const createVenta = async (data: any): Promise<Venta> => {
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
-  }
+interface CreateVentaData {
+  fecha: string | Date;
+  clienteId: number | string;
+  total: number | string;
+  estadoPago: string;
+  detalles?: Array<{
+    cuyId: number;
+    peso: number;
+    precioUnitario: number;
+  }>;
+}
 
-  // Convertir el ID del cliente a número
-  if (data.clienteId && typeof data.clienteId === 'string') {
-    data.clienteId = Number(data.clienteId);
-  }
-
-  // Convertir el total a número
-  if (data.total && typeof data.total === 'string') {
-    data.total = Number(data.total);
-  }
+export const createVenta = async (data: CreateVentaData): Promise<Venta> => {
+  // Sanitizar datos
+  const clienteId = typeof data.clienteId === 'string' ? Number(data.clienteId) : data.clienteId;
+  const sanitizedData = {
+    fecha: typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha,
+    clienteId: clienteId,
+    total: typeof data.total === 'string' ? Number(data.total) : data.total,
+    estadoPago: data.estadoPago
+  };
 
   // Verificar si existe el cliente o crearlo
   try {
     await prisma.cliente.findUnique({
-      where: { id: data.clienteId }
+      where: { id: clienteId }
     });
   } catch (error) {
     // Si no existe, crear un cliente genérico
     await prisma.cliente.create({
       data: {
-        id: data.clienteId,
+        id: clienteId,
         nombre: 'Cliente General',
         contacto: 'Sin datos',
         direccion: 'Sin dirección'
@@ -67,38 +73,39 @@ export const createVenta = async (data: any): Promise<Venta> => {
   }
 
   return prisma.venta.create({
-    data,
+    data: sanitizedData,
     include: {
       cliente: true
     }
   });
 };
 
-export const updateVenta = async (id: number, data: any): Promise<Venta | null> => {
+export const updateVenta = async (id: number, data: Partial<CreateVentaData>): Promise<Venta | null> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de venta inválido');
   }
 
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
+  // Sanitizar datos
+  const sanitizedData: any = {};
+  
+  if (data.fecha !== undefined) {
+    sanitizedData.fecha = typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha;
   }
-
-  // Convertir el ID del cliente a número
-  if (data.clienteId && typeof data.clienteId === 'string') {
-    data.clienteId = Number(data.clienteId);
+  if (data.clienteId !== undefined) {
+    sanitizedData.clienteId = typeof data.clienteId === 'string' ? Number(data.clienteId) : data.clienteId;
   }
-
-  // Convertir el total a número
-  if (data.total && typeof data.total === 'string') {
-    data.total = Number(data.total);
+  if (data.total !== undefined) {
+    sanitizedData.total = typeof data.total === 'string' ? Number(data.total) : data.total;
+  }
+  if (data.estadoPago !== undefined) {
+    sanitizedData.estadoPago = data.estadoPago;
   }
 
   return prisma.venta.update({
     where: {
       id: Number(id)
     },
-    data,
+    data: sanitizedData,
     include: {
       cliente: true
     }

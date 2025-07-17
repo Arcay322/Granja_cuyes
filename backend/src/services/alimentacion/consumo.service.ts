@@ -190,7 +190,7 @@ export const deleteConsumo = async (id: number): Promise<boolean> => {
 
       return !!deleted;
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al eliminar consumo:', error);
     throw error;
   }
@@ -198,7 +198,7 @@ export const deleteConsumo = async (id: number): Promise<boolean> => {
 
 // Función para obtener consumos por galpón y período
 export const getConsumosPorGalpon = async (galpon: string, fechaInicio?: Date, fechaFin?: Date) => {
-  const whereClause: any = { galpon };
+  const whereClause: Record<string, any> = { galpon };
 
   if (fechaInicio || fechaFin) {
     whereClause.fecha = {};
@@ -217,7 +217,7 @@ export const getConsumosPorGalpon = async (galpon: string, fechaInicio?: Date, f
 
 // Función para obtener estadísticas de consumo
 export const getEstadisticasConsumo = async (fechaInicio?: Date, fechaFin?: Date) => {
-  const whereClause: any = {};
+  const whereClause: Record<string, any> = {};
 
   if (fechaInicio || fechaFin) {
     whereClause.fecha = {};

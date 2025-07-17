@@ -23,45 +23,67 @@ export const getRegistroSaludById = async (id: number): Promise<HistorialSalud |
   });
 };
 
-export const createRegistroSalud = async (data: any): Promise<HistorialSalud> => {
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
-  }
+interface CreateRegistroSaludData {
+  cuyId: number | string;
+  tipo: string;
+  fecha: string | Date;
+  descripcion: string;
+  veterinario: string;
+  medicamento?: string;
+  dosis?: string;
+  duracion?: string;
+  tratamiento?: string;
+}
 
-  // Convertir el ID del cuy a número
-  if (data.cuyId && typeof data.cuyId === 'string') {
-    data.cuyId = Number(data.cuyId);
-  }
+export const createRegistroSalud = async (data: CreateRegistroSaludData): Promise<HistorialSalud> => {
+  // Sanitizar datos
+  const sanitizedData = {
+    cuyId: typeof data.cuyId === 'string' ? Number(data.cuyId) : data.cuyId,
+    tipo: data.tipo,
+    fecha: typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha,
+    descripcion: data.descripcion,
+    veterinario: data.veterinario,
+    medicamento: data.medicamento,
+    dosis: data.dosis,
+    duracion: data.duracion,
+    tratamiento: data.tratamiento
+  };
 
   return prisma.historialSalud.create({
-    data,
+    data: sanitizedData,
     include: {
       cuy: true
     }
   });
 };
 
-export const updateRegistroSalud = async (id: number, data: any): Promise<HistorialSalud | null> => {
+export const updateRegistroSalud = async (id: number, data: Partial<CreateRegistroSaludData>): Promise<HistorialSalud | null> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de registro inválido');
   }
 
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
+  // Sanitizar datos
+  const sanitizedData: any = {};
+  
+  if (data.cuyId !== undefined) {
+    sanitizedData.cuyId = typeof data.cuyId === 'string' ? Number(data.cuyId) : data.cuyId;
   }
-
-  // Convertir el ID del cuy a número
-  if (data.cuyId && typeof data.cuyId === 'string') {
-    data.cuyId = Number(data.cuyId);
+  if (data.tipo !== undefined) sanitizedData.tipo = data.tipo;
+  if (data.fecha !== undefined) {
+    sanitizedData.fecha = typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha;
   }
+  if (data.descripcion !== undefined) sanitizedData.descripcion = data.descripcion;
+  if (data.veterinario !== undefined) sanitizedData.veterinario = data.veterinario;
+  if (data.medicamento !== undefined) sanitizedData.medicamento = data.medicamento;
+  if (data.dosis !== undefined) sanitizedData.dosis = data.dosis;
+  if (data.duracion !== undefined) sanitizedData.duracion = data.duracion;
+  if (data.tratamiento !== undefined) sanitizedData.tratamiento = data.tratamiento;
 
   return prisma.historialSalud.update({
     where: {
       id: Number(id)
     },
-    data,
+    data: sanitizedData,
     include: {
       cuy: true
     }

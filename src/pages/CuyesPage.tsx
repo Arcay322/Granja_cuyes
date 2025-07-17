@@ -8,12 +8,22 @@ import CuyesManagerFixed from '../components/CuyesManagerFixed';
 
 const CuyesPage: React.FC = () => {
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container 
+      maxWidth="xl" 
+      sx={{ 
+        mt: { xs: 2, md: 4 }, 
+        mb: { xs: 2, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
       {/* Migas de pan */}
       <Breadcrumbs 
         separator={<NavigateNext fontSize="small" />} 
         aria-label="breadcrumb"
-        sx={{ mb: 3 }}
+        sx={{ 
+          mb: { xs: 2, md: 3 },
+          px: { xs: 1, md: 0 }
+        }}
       >
         <Link
           underline="hover"

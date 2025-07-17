@@ -17,7 +17,7 @@ export const getAllCuyes = async (req: Request, res: Response, next: NextFunctio
     } = req.query;
     
     // Construir filtros
-    const filters: any = {};
+    const filters: Record<string, any> = {};
     if (galpon && typeof galpon === 'string') filters.galpon = galpon;
     if (jaula && typeof jaula === 'string') filters.jaula = jaula;
     if (raza && typeof raza === 'string') filters.raza = raza;
@@ -42,7 +42,7 @@ export const getAllCuyes = async (req: Request, res: Response, next: NextFunctio
       filters: filters,
       message: `${result.pagination.total} cuyes encontrados`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getAllCuyes:', error);
     next(error);
   }
@@ -71,7 +71,7 @@ export const getCuyById = async (req: Request, res: Response, next: NextFunction
       data: cuy,
       message: 'Cuy obtenido exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyById:', error);
     next(error);
   }
@@ -85,9 +85,9 @@ export const createCuy = async (req: Request, res: Response, next: NextFunction)
       data: cuy,
       message: 'Cuy creado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en createCuy:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe un cuy con esos datos',
@@ -121,9 +121,9 @@ export const updateCuy = async (req: Request, res: Response, next: NextFunction)
       data: cuy,
       message: 'Cuy actualizado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en updateCuy:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe un cuy con esos datos',
@@ -156,9 +156,9 @@ export const deleteCuy = async (req: Request, res: Response, next: NextFunction)
       success: true,
       message: 'Cuy eliminado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en deleteCuy:', error);
-    if (error.message && error.message.includes('referencia')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('referencia')) {
       return res.status(400).json({
         success: false,
         message: 'No se puede eliminar el cuy',
@@ -177,7 +177,7 @@ export const getCuyesStats = async (req: Request, res: Response, next: NextFunct
       data: stats,
       message: 'Estadísticas de cuyes obtenidas exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyesStats:', error);
     next(error);
   }
@@ -206,9 +206,9 @@ export const cambiarAReproductor = async (req: Request, res: Response, next: Nex
       data: cuy,
       message: 'Cuy cambiado a reproductor exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en cambiarAReproductor:', error);
-    if (error.message && error.message.includes('edad')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('edad')) {
       return res.status(400).json({
         success: false,
         message: 'No se puede cambiar a reproductor',
@@ -242,9 +242,9 @@ export const cambiarAEngorde = async (req: Request, res: Response, next: NextFun
       data: cuy,
       message: 'Cuy cambiado a engorde exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en cambiarAEngorde:', error);
-    if (error.message && error.message.includes('edad')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('edad')) {
       return res.status(400).json({
         success: false,
         message: 'No se puede cambiar a engorde',
@@ -263,9 +263,9 @@ export const crearCuyesPorJaula = async (req: Request, res: Response, next: Next
       data: cuyesCreados,
       message: `${cuyesCreados.length} cuyes creados exitosamente`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en crearCuyesPorJaula:', error);
-    if (error.message && error.message.includes('capacidad')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('capacidad')) {
       return res.status(400).json({
         success: false,
         message: 'Error de capacidad en la jaula',
@@ -284,7 +284,7 @@ export const getCuyesDisponiblesParaVenta = async (req: Request, res: Response, 
       data: cuyes,
       message: `${cuyes.length} cuyes disponibles para venta`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyesDisponiblesParaVenta:', error);
     next(error);
   }
@@ -302,7 +302,7 @@ export const getCuyesEstadisticasAvanzadas = async (req: Request, res: Response,
       data: stats,
       message: 'Estadísticas avanzadas obtenidas exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyesEstadisticasAvanzadas:', error);
     next(error);
   }
@@ -325,7 +325,7 @@ export const getCuyHistorial = async (req: Request, res: Response, next: NextFun
       data: historial,
       message: 'Historial del cuy obtenido exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyHistorial:', error);
     next(error);
   }
@@ -348,7 +348,7 @@ export const getCuyesPorEtapa = async (req: Request, res: Response, next: NextFu
       data: cuyes,
       message: `${cuyes.length} cuyes en etapa ${etapa}`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getCuyesPorEtapa:', error);
     next(error);
   }
@@ -363,8 +363,35 @@ export const actualizarEtapasAutomaticamente = async (req: Request, res: Respons
       data: resultado,
       message: `${resultado.actualizados} cuyes actualizados automáticamente`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en actualizarEtapasAutomaticamente:', error);
+    next(error);
+  }
+};
+export
+ const getEstadisticasPorJaula = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { galpon, jaula } = req.query;
+    
+    if (!galpon || !jaula) {
+      return res.status(400).json({
+        success: false,
+        message: 'Galpón y jaula son requeridos'
+      });
+    }
+    
+    const stats = await cuyesService.getEstadisticasPorJaula(
+      galpon as string, 
+      jaula as string
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: stats,
+      message: `Estadísticas de la jaula ${jaula} en galpón ${galpon} obtenidas exitosamente`
+    });
+  } catch (error: unknown) {
+    console.error('Error en getEstadisticasPorJaula:', error);
     next(error);
   }
 };

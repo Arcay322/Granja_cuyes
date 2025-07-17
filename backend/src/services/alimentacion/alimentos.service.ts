@@ -9,9 +9,18 @@ export const getAlimentoById = async (id: number): Promise<Alimento | null> => {
   return prisma.alimento.findUnique({ where: { id } });
 };
 
-export const createAlimento = async (data: any): Promise<Alimento> => {
+interface CreateAlimentoData {
+  nombre: string;
+  descripcion: string;
+  unidad: string;
+  proveedorId: number | string;
+  stock: number | string;
+  costoUnitario: number | string;
+}
+
+export const createAlimento = async (data: CreateAlimentoData): Promise<Alimento> => {
   // Check if data has numeric fields and convert them
-  let proveedorId = data.proveedorId ? parseInt(data.proveedorId) : undefined;
+  let proveedorId = data.proveedorId ? parseInt(data.proveedorId.toString()) : undefined;
   
   // Si no se proporciona un ID de proveedor o si el proveedor no existe, crear uno por defecto
   if (!proveedorId) {
@@ -54,9 +63,9 @@ export const createAlimento = async (data: any): Promise<Alimento> => {
   return prisma.alimento.create({ data: sanitizedData });
 };
 
-export const updateAlimento = async (id: number, data: any): Promise<Alimento | null> => {
+export const updateAlimento = async (id: number, data: Partial<CreateAlimentoData>): Promise<Alimento | null> => {
   // Check if data has numeric fields and convert them
-  const sanitizedData: any = {
+  const sanitizedData: Record<string, any> = {
     ...data,
     stock: typeof data.stock === 'string' ? parseFloat(data.stock) : data.stock,
     costoUnitario: typeof data.costoUnitario === 'string' ? parseFloat(data.costoUnitario) : data.costoUnitario,
@@ -64,7 +73,7 @@ export const updateAlimento = async (id: number, data: any): Promise<Alimento | 
   
   // Si se proporciona un proveedorId, verificar que exista
   if (data.proveedorId) {
-    const proveedorId = parseInt(data.proveedorId);
+    const proveedorId = parseInt(data.proveedorId.toString());
     const proveedorExiste = await prisma.proveedor.findUnique({
       where: { id: proveedorId },
     });

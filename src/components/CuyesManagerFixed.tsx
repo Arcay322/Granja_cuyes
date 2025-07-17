@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Card, CardContent, Avatar, Chip, Button, Dialog,
   DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel,
@@ -11,6 +11,7 @@ import {
   Male, Female, Search, FilterList, Refresh, History, Close, CalendarMonth,
   Scale, LocationOn, Info, CheckCircle, ViewModule, ViewList, TableChart
 } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
@@ -115,8 +116,43 @@ const initialCuyForm: CuyForm = {
   fechaFallecimiento: null
 };
 
-const CuyesManagerFixed: React.FC = () => {
+interface CuyesManagerProps {
+  // Props para configurar qué funcionalidades mostrar
+  showNewCuyButton?: boolean;
+  showMassiveRegistration?: boolean;
+  showViewToggle?: boolean;
+  showFiltersPanel?: boolean;
+  showStats?: boolean;
+  showTitle?: boolean;
+  showUpdateStagesButton?: boolean;
+  showFiltersButton?: boolean;
+  showRefreshButton?: boolean;
+  showSearchButton?: boolean;
+  // Props para filtros preestablecidos
+  presetFilters?: {
+    galpon?: string;
+    jaula?: string;
+  };
+  // Props para personalizar el título
+  customTitle?: string;
+}
+
+const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
+  showNewCuyButton = true,
+  showMassiveRegistration = true,
+  showViewToggle = true,
+  showFiltersPanel = true,
+  showStats = true,
+  showTitle = true,
+  showUpdateStagesButton = false,
+  showFiltersButton = true,
+  showRefreshButton = false,
+  showSearchButton = true,
+  presetFilters,
+  customTitle
+}) => {
   const theme = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cuyes, setCuyes] = useState<Cuy[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCuy, setSelectedCuy] = useState<Cuy | null>(null);
@@ -197,12 +233,64 @@ const CuyesManagerFixed: React.FC = () => {
     pesoMin: 0.4,
     pesoMax: 0.6,
     galpon: '',
-    jaulaInicio: '',
+    jaula: '',
     estado: 'Activo',
     etapaVida: 'Cría',
     proposito: 'Indefinido'
   });
   const [masiveLoading, setMasiveLoading] = useState(false);
+
+  // Estados para galpones y jaulas
+  const [galpones, setGalpones] = useState<Array<{ id: number, nombre: string }>>([]);
+  const [jaulas, setJaulas] = useState<Array<{ id: number, nombre: string, galponNombre: string, capacidadMaxima?: number }>>([]);
+  const [jaulasDisponibles, setJaulasDisponibles] = useState<Array<{ id: number, nombre: string, galponNombre: string, capacidadMaxima?: number, ocupacionActual?: number }>>([]);
+
+  // Estados para crear nuevos galpones y jaulas
+  const [openNewGalponDialog, setOpenNewGalponDialog] = useState(false);
+  const [openNewJaulaDialog, setOpenNewJaulaDialog] = useState(false);
+  const [newGalponForm, setNewGalponForm] = useState({
+    nombre: '',
+    descripcion: '',
+    ubicacion: '',
+    capacidadMaxima: 50
+  });
+  const [newJaulaForm, setNewJaulaForm] = useState({
+    nombre: '',
+    galponNombre: '',
+    descripcion: '',
+    capacidadMaxima: 10,
+    tipo: 'Estándar'
+  });
+  const [creatingGalpon, setCreatingGalpon] = useState(false);
+  const [creatingJaula, setCreatingJaula] = useState(false);
+
+  // Estados para información de capacidad en tiempo real
+  const [capacidadInfo, setCapacidadInfo] = useState<{
+    jaula?: {
+      ocupacionActual: number;
+      capacidadMaxima: number;
+      porcentajeOcupacion: number;
+      espacioDisponible: number;
+    };
+    galpon?: {
+      ocupacionActual: number;
+      capacidadMaxima: number;
+      porcentajeOcupacion: number;
+      espacioDisponible: number;
+    };
+  }>({});
+
+  // Estados para diálogo de advertencia de capacidad
+  const [openCapacidadWarningDialog, setOpenCapacidadWarningDialog] = useState(false);
+  const [capacidadWarningData, setCapacidadWarningData] = useState<{
+    jaula: unknown;
+    galpon: unknown;
+    cantidad: number;
+    totalJaula: number;
+    totalGalpon: number;
+    porcentajeJaula: number;
+    porcentajeGalpon: number;
+  } | null>(null);
 
   // Configuración para diálogo de confirmación de eliminación
   const deleteConfirmation = useDeleteConfirmation({
@@ -212,21 +300,17 @@ const CuyesManagerFixed: React.FC = () => {
         if (response.data.success) {
           fetchCuyes();
           fetchStats();
-          toastService.success('Cuy eliminado', 'El cuy ha sido eliminado exitosamente');
+          // La notificación de éxito la maneja automáticamente el hook
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         const errorMsg = error.response?.data?.error || 'No se pudo eliminar el cuy';
-        toastService.error('Error al eliminar', errorMsg);
+        // Re-lanzar el error para que el hook maneje la notificación de error
+        throw new Error(errorMsg);
       }
     },
     itemName: 'cuy',
-    successMessage: 'Cuy eliminado exitosamente'
+    successMessage: 'El cuy ha sido eliminado exitosamente'
   });
-
-  useEffect(() => {
-    fetchCuyes();
-    fetchStats();
-  }, [pagination.page, pagination.limit]);
 
   // Función para aplicar filtros manualmente
   const handleApplyFilters = () => {
@@ -234,7 +318,7 @@ const CuyesManagerFixed: React.FC = () => {
     fetchCuyes();
   };
 
-  const fetchCuyes = async () => {
+  const fetchCuyes = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -263,18 +347,112 @@ const CuyesManagerFixed: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.limit, filters, searchTerm]);
 
-  const fetchStats = async () => {
+  // Efecto para aplicar filtros desde URL o props al cargar el componente
+  useEffect(() => {
+    const galponParam = searchParams.get('galpon') || presetFilters?.galpon;
+    const jaulaParam = searchParams.get('jaula') || presetFilters?.jaula;
+
+    if (galponParam || jaulaParam) {
+      setFilters(prev => ({
+        ...prev,
+        galpon: galponParam || '',
+        jaula: jaulaParam || ''
+      }));
+
+      // Mostrar filtros automáticamente si vienen desde URL o props
+      if (showFiltersPanel) {
+        setShowFilters(true);
+      }
+
+      // Mostrar mensaje informativo solo si vienen desde URL
+      if (searchParams.get('galpon') || searchParams.get('jaula')) {
+        if (galponParam && jaulaParam) {
+          toastService.info(
+            'Filtros aplicados',
+            `Mostrando cuyes del Galpón ${galponParam}, Jaula ${jaulaParam}`
+          );
+        } else if (galponParam) {
+          toastService.info(
+            'Filtros aplicados',
+            `Mostrando cuyes del Galpón ${galponParam}`
+          );
+        }
+      }
+    }
+  }, [searchParams, presetFilters, showFiltersPanel]);
+
+  const fetchStats = useCallback(async () => {
     try {
-      const response = await api.get('/cuyes/stats');
-      if (response.data.success) {
-        setStats(response.data.data);
+      let response;
+
+      // Si hay filtros preestablecidos de galpón y jaula, usar estadísticas específicas
+      if (presetFilters?.galpon && presetFilters?.jaula) {
+        const params = new URLSearchParams({
+          galpon: presetFilters.galpon,
+          jaula: presetFilters.jaula
+        });
+        response = await api.get(`/cuyes/estadisticas-jaula?${params}`);
+
+        // Adaptar la respuesta al formato esperado por el componente
+        if (response.data.success) {
+          const jaulaData = response.data.data;
+          const resumen = jaulaData.resumen;
+          const distribucion = jaulaData.distribucion;
+
+          // Obtener estadísticas reales de la jaula
+          const totalCuyes = resumen.totalCuyes;
+          const crias = distribucion.etapas.find((e: unknown) => e.etapa === 'Cría')?.cantidad || 0;
+
+          // Hacer una consulta adicional para obtener datos de sexo específicos de la jaula
+          const cuyesResponse = await api.get(`/cuyes?galpon=${presetFilters.galpon}&jaula=${presetFilters.jaula}&limit=1000`);
+          if (cuyesResponse.data.success) {
+            const cuyesJaula = cuyesResponse.data.data;
+            const machos = cuyesJaula.filter((c: unknown) => c.sexo === 'M').length;
+            const hembras = cuyesJaula.filter((c: unknown) => c.sexo === 'H').length;
+
+            setStats({
+              total: totalCuyes,
+              machos: machos,
+              hembras: hembras,
+              crias: crias,
+              adultos: totalCuyes - crias
+            });
+          } else {
+            // Fallback con aproximación si falla la consulta de cuyes
+            setStats({
+              total: totalCuyes,
+              machos: Math.floor(totalCuyes * 0.5),
+              hembras: Math.ceil(totalCuyes * 0.5),
+              crias: crias,
+              adultos: totalCuyes - crias
+            });
+          }
+        }
+      } else {
+        // Usar estadísticas generales
+        response = await api.get('/cuyes/stats');
+        if (response.data.success) {
+          setStats(response.data.data);
+        }
       }
     } catch (error) {
       console.error('Error al obtener estadísticas:', error);
     }
-  };
+  }, [presetFilters]);
+
+  useEffect(() => {
+    fetchCuyes();
+    fetchStats();
+    fetchGalpones();
+    fetchJaulas();
+  }, [fetchCuyes]);
+
+  // Efecto separado para fetchStats cuando cambien los presetFilters
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const fetchEstadisticasAvanzadas = async () => {
     console.log('🔍 Función fetchEstadisticasAvanzadas ejecutada');
@@ -319,6 +497,101 @@ const CuyesManagerFixed: React.FC = () => {
       toastService.error('Error', 'No se pudo cargar el historial del cuy');
     } finally {
       setLoadingHistorial(false);
+    }
+  };
+
+  const fetchGalpones = async () => {
+    try {
+      const response = await api.get('/galpones');
+      if (response.data.success) {
+        setGalpones(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error al obtener galpones:', error);
+    }
+  };
+
+  const fetchJaulas = async () => {
+    try {
+      const response = await api.get('/galpones/jaulas/todas');
+      if (response.data.success) {
+        setJaulas(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error al obtener jaulas:', error);
+    }
+  };
+
+  // Función para verificar capacidad de jaula
+  const verificarCapacidadJaula = async (galponNombre: string, jaulaNombre: string) => {
+    try {
+      // Obtener cuyes actuales en la jaula
+      const cuyesResponse = await api.get(`/cuyes?galpon=${galponNombre}&jaula=${jaulaNombre}&limit=1000`);
+      const cuyesActuales = cuyesResponse.data.data?.length || 0;
+
+      // Obtener información fresca de la jaula directamente de la API
+      const jaulasResponse = await api.get('/galpones/jaulas/todas');
+      const jaulasActualizadas = jaulasResponse.data.success ? jaulasResponse.data.data : jaulas;
+
+      // Buscar la jaula para obtener su capacidad máxima
+      const jaula = jaulasActualizadas.find(j => j.galponNombre === galponNombre && j.nombre === jaulaNombre);
+      const capacidadMaxima = jaula?.capacidadMaxima || 10;
+
+      console.log(`🔍 Verificando jaula ${jaulaNombre} en galpón ${galponNombre}:`);
+      console.log(`📊 Cuyes actuales: ${cuyesActuales}`);
+      console.log(`📊 Capacidad máxima: ${capacidadMaxima}`);
+      console.log(`📊 Espacio disponible: ${capacidadMaxima - cuyesActuales}`);
+
+      return {
+        ocupacionActual: cuyesActuales,
+        capacidadMaxima,
+        porcentajeOcupacion: (cuyesActuales / capacidadMaxima) * 100,
+        espacioDisponible: capacidadMaxima - cuyesActuales
+      };
+    } catch (error) {
+      console.error('Error al verificar capacidad de jaula:', error);
+      return null;
+    }
+  };
+
+  // Función para verificar capacidad de galpón
+  const verificarCapacidadGalpon = async (galponNombre: string) => {
+    try {
+      const response = await api.get(`/cuyes?galpon=${galponNombre}&limit=1000`);
+      const cuyesActuales = response.data.data?.length || 0;
+
+      // Buscar el galpón para obtener su capacidad máxima
+      const galpon = galpones.find(g => g.nombre === galponNombre);
+      const capacidadMaxima = galpon?.capacidadMaxima || 50;
+
+      return {
+        ocupacionActual: cuyesActuales,
+        capacidadMaxima,
+        porcentajeOcupacion: (cuyesActuales / capacidadMaxima) * 100,
+        espacioDisponible: capacidadMaxima - cuyesActuales
+      };
+    } catch (error) {
+      console.error('Error al verificar capacidad de galpón:', error);
+      return null;
+    }
+  };
+
+  // Funciones para actualizar información de capacidad en tiempo real
+  const actualizarCapacidadGalpon = async (galponNombre: string) => {
+    if (!galponNombre) return;
+
+    const capacidad = await verificarCapacidadGalpon(galponNombre);
+    if (capacidad) {
+      setCapacidadInfo(prev => ({ ...prev, galpon: capacidad }));
+    }
+  };
+
+  const actualizarCapacidadJaula = async (galponNombre: string, jaulaNombre: string) => {
+    if (!galponNombre || !jaulaNombre) return;
+
+    const capacidad = await verificarCapacidadJaula(galponNombre, jaulaNombre);
+    if (capacidad) {
+      setCapacidadInfo(prev => ({ ...prev, jaula: capacidad }));
     }
   };
 
@@ -445,7 +718,7 @@ const CuyesManagerFixed: React.FC = () => {
       setOpenCuyDialog(false);
       fetchCuyes();
       fetchStats();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al guardar cuy:', error);
       const errorMsg = error.response?.data?.error || 'No se pudo guardar el cuy';
       toastService.error('Error al guardar', errorMsg);
@@ -461,7 +734,7 @@ const CuyesManagerFixed: React.FC = () => {
         toastService.success('Cambio exitoso', 'Cuy cambiado a reproductor exitosamente');
         fetchCuyes();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMsg = error.response?.data?.error || 'No se pudo cambiar a reproductor';
       toastService.error('Error al cambiar', errorMsg);
     }
@@ -474,7 +747,7 @@ const CuyesManagerFixed: React.FC = () => {
         toastService.success('Cambio exitoso', 'Cuy enviado a engorde exitosamente');
         fetchCuyes();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMsg = error.response?.data?.error || 'No se pudo enviar a engorde';
       toastService.error('Error al cambiar', errorMsg);
     }
@@ -598,31 +871,25 @@ const CuyesManagerFixed: React.FC = () => {
     setOpenBulkDeleteDialog(false);
   };
 
-  // Funciones para registro masivo
-  const handleMasiveChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
-    const { name, value } = e.target;
-    if (name) {
-      setMasiveForm(prev => ({ ...prev, [name]: value }));
-    }
+  // Funciones para el diálogo de advertencia de capacidad
+  const handleCapacidadWarningConfirm = async () => {
+    setOpenCapacidadWarningDialog(false);
+    // Continuar con el registro masivo
+    await continuarRegistroMasivo();
   };
 
-  const handleMasiveSubmit = async () => {
-    if (!masiveForm.galpon.trim() || !masiveForm.jaulaInicio.trim()) {
-      toastService.error('Campos requeridos', 'Galpón y jaula inicial son obligatorios');
-      return;
-    }
+  const handleCapacidadWarningCancel = () => {
+    setOpenCapacidadWarningDialog(false);
+    setMasiveLoading(false);
+  };
 
-    if (masiveForm.cantidad < 1 || masiveForm.cantidad > 50) {
-      toastService.error('Cantidad inválida', 'La cantidad debe estar entre 1 y 50 cuyes');
-      return;
-    }
-
-    setMasiveLoading(true);
+  const continuarRegistroMasivo = async () => {
+    // Esta función contiene la lógica de registro que se ejecuta después de confirmar la advertencia
     try {
       const cuyes = [];
-      const jaulaInicial = parseInt(masiveForm.jaulaInicio);
+      const cantidadNumerica = Number(masiveForm.cantidad);
 
-      for (let i = 0; i < masiveForm.cantidad; i++) {
+      for (let i = 0; i < cantidadNumerica; i++) {
         // Convertir a números para asegurar que no sean strings
         const pesoMin = parseFloat(masiveForm.pesoMin.toString());
         const pesoMax = parseFloat(masiveForm.pesoMax.toString());
@@ -635,7 +902,7 @@ const CuyesManagerFixed: React.FC = () => {
           sexo: masiveForm.sexo === 'Aleatorio' ? sexoRandom : masiveForm.sexo,
           peso: Math.round(pesoRandom * 100) / 100, // Redondear a 2 decimales
           galpon: masiveForm.galpon,
-          jaula: (jaulaInicial + i).toString(),
+          jaula: masiveForm.jaula, // Usar la jaula específica seleccionada
           estado: masiveForm.estado,
           etapaVida: masiveForm.etapaVida,
           proposito: masiveForm.proposito
@@ -666,7 +933,310 @@ const CuyesManagerFixed: React.FC = () => {
       if (creados > 0) {
         toastService.success(
           'Registro Masivo Exitoso',
-          `Se crearon ${creados} cuyes exitosamente${errores > 0 ? ` (${errores} errores)` : ''}`
+          `Se crearon ${creados} cuyes exitosamente en ${masiveForm.galpon}-${masiveForm.jaula}${errores > 0 ? ` (${errores} errores)` : ''}`
+        );
+        setOpenMasiveDialog(false);
+        fetchCuyes();
+        fetchStats();
+      } else {
+        toastService.error('Error en Registro Masivo', 'No se pudo crear ningún cuy');
+      }
+    } catch (error) {
+      console.error('Error en registro masivo:', error);
+      toastService.error('Error', 'Error inesperado en el registro masivo');
+    } finally {
+      setMasiveLoading(false);
+    }
+  };
+
+  const handleOpenMasiveDialog = () => {
+    // Limpiar formulario y estados
+    setMasiveForm({
+      cantidad: 5,
+      raza: 'Peruano',
+      fechaNacimiento: new Date().toISOString().split('T')[0],
+      sexo: 'M',
+      pesoMin: 0.4,
+      pesoMax: 0.6,
+      galpon: '',
+      jaula: '',
+      estado: 'Activo',
+      etapaVida: 'Cría',
+      proposito: 'Indefinido'
+    });
+    setJaulasDisponibles([]);
+    setOpenMasiveDialog(true);
+  };
+
+  // Funciones para crear nuevos galpones y jaulas
+  const handleNewGalponChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewGalponForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNewJaulaChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setNewJaulaForm(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleCreateGalpon = async () => {
+    if (!newGalponForm.nombre.trim()) {
+      toastService.error('Error', 'El nombre del galpón es obligatorio');
+      return;
+    }
+
+    setCreatingGalpon(true);
+    try {
+      const response = await api.post('/galpones', {
+        nombre: newGalponForm.nombre,
+        descripcion: newGalponForm.descripcion,
+        ubicacion: newGalponForm.ubicacion,
+        capacidadMaxima: newGalponForm.capacidadMaxima
+      });
+
+      if (response.data.success) {
+        toastService.success('Galpón creado', 'El galpón ha sido creado exitosamente');
+        setOpenNewGalponDialog(false);
+        setNewGalponForm({
+          nombre: '',
+          descripcion: '',
+          ubicacion: '',
+          capacidadMaxima: 50
+        });
+
+        // Actualizar lista de galpones y seleccionar el nuevo
+        await fetchGalpones();
+        setMasiveForm(prev => ({ ...prev, galpon: newGalponForm.nombre }));
+      }
+    } catch (error: unknown) {
+      const errorMsg = error.response?.data?.error || 'No se pudo crear el galpón';
+      toastService.error('Error al crear galpón', errorMsg);
+    } finally {
+      setCreatingGalpon(false);
+    }
+  };
+
+  const handleCreateJaula = async () => {
+    if (!newJaulaForm.nombre.trim() || !newJaulaForm.galponNombre.trim()) {
+      toastService.error('Error', 'El nombre de la jaula y el galpón son obligatorios');
+      return;
+    }
+
+    // Buscar el ID del galpón
+    const galpon = galpones.find(g => g.nombre === newJaulaForm.galponNombre);
+    if (!galpon) {
+      toastService.error('Error', 'Galpón no encontrado');
+      return;
+    }
+
+    setCreatingJaula(true);
+    try {
+      const response = await api.post('/galpones/jaulas', {
+        nombre: newJaulaForm.nombre,
+        galponId: galpon.id,
+        galponNombre: newJaulaForm.galponNombre,
+        descripcion: newJaulaForm.descripcion,
+        capacidadMaxima: newJaulaForm.capacidadMaxima,
+        tipo: newJaulaForm.tipo
+      });
+
+      if (response.data.success) {
+        toastService.success('Jaula creada', 'La jaula ha sido creada exitosamente');
+        setOpenNewJaulaDialog(false);
+        setNewJaulaForm({
+          nombre: '',
+          galponNombre: '',
+          descripcion: '',
+          capacidadMaxima: 10,
+          tipo: 'Estándar'
+        });
+
+        // Actualizar lista de jaulas y seleccionar la nueva
+        const jaulasResponse = await api.get('/galpones/jaulas/todas');
+        if (jaulasResponse.data.success) {
+          const nuevasJaulas = jaulasResponse.data.data;
+          setJaulas(nuevasJaulas);
+
+          // Filtrar jaulas del galpón actual y actualizar inmediatamente
+          const jaulasDelGalpon = nuevasJaulas.filter(jaula => jaula.galponNombre === newJaulaForm.galponNombre);
+          setJaulasDisponibles(jaulasDelGalpon);
+
+          // Seleccionar la nueva jaula
+          setMasiveForm(prev => ({ ...prev, jaula: newJaulaForm.nombre }));
+        }
+      }
+    } catch (error: unknown) {
+      const errorMsg = error.response?.data?.error || 'No se pudo crear la jaula';
+      toastService.error('Error al crear jaula', errorMsg);
+    } finally {
+      setCreatingJaula(false);
+    }
+  };
+
+  // Funciones para registro masivo
+  const handleMasiveChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setMasiveForm(prev => ({ ...prev, [name]: value }));
+
+      // Si cambia el galpón, filtrar las jaulas disponibles y actualizar capacidad
+      if (name === 'galpon') {
+        const jaulasDelGalpon = jaulas.filter(jaula => jaula.galponNombre === value);
+        setJaulasDisponibles(jaulasDelGalpon);
+        // Limpiar la jaula seleccionada si no pertenece al nuevo galpón
+        setMasiveForm(prev => ({ ...prev, jaula: '' }));
+        // Actualizar información de capacidad del galpón
+        actualizarCapacidadGalpon(value as string);
+        // Limpiar información de capacidad de jaula
+        setCapacidadInfo(prev => ({ ...prev, jaula: undefined }));
+      }
+
+      // Si cambia la jaula, actualizar información de capacidad
+      if (name === 'jaula' && masiveForm.galpon) {
+        actualizarCapacidadJaula(masiveForm.galpon, value as string);
+      }
+    }
+  };
+
+  const handleMasiveSubmit = async () => {
+    if (!masiveForm.galpon.trim() || !masiveForm.jaula.trim()) {
+      toastService.error('Campos requeridos', 'Galpón y jaula son obligatorios');
+      return;
+    }
+
+    if (masiveForm.cantidad < 1 || masiveForm.cantidad > 50) {
+      toastService.error('Cantidad inválida', 'La cantidad debe estar entre 1 y 50 cuyes');
+      return;
+    }
+
+    // Validar que la jaula seleccionada pertenece al galpón seleccionado
+    const jaulaValida = jaulasDisponibles.find(j => j.nombre === masiveForm.jaula);
+    if (!jaulaValida) {
+      toastService.error('Jaula inválida', 'La jaula seleccionada no pertenece al galpón especificado');
+      return;
+    }
+
+    // Verificar capacidad de la jaula y galpón (obtener datos frescos)
+    console.log('🔍 Verificando capacidad antes del registro...');
+    const capacidadJaula = await verificarCapacidadJaula(masiveForm.galpon, masiveForm.jaula);
+    const capacidadGalpon = await verificarCapacidadGalpon(masiveForm.galpon);
+
+    console.log('📊 Capacidad Jaula:', capacidadJaula);
+    console.log('📊 Capacidad Galpón:', capacidadGalpon);
+
+    if (capacidadJaula && capacidadGalpon) {
+      // Convertir cantidad a número para evitar concatenación de strings
+      const cantidadNumerica = Number(masiveForm.cantidad);
+      const totalDespuesDeRegistroJaula = capacidadJaula.ocupacionActual + cantidadNumerica;
+      const totalDespuesDeRegistroGalpon = capacidadGalpon.ocupacionActual + cantidadNumerica;
+
+      console.log(`🧮 Cálculo Jaula: ${capacidadJaula.ocupacionActual} + ${cantidadNumerica} = ${totalDespuesDeRegistroJaula} (máx: ${capacidadJaula.capacidadMaxima})`);
+      console.log(`🧮 Cálculo Galpón: ${capacidadGalpon.ocupacionActual} + ${cantidadNumerica} = ${totalDespuesDeRegistroGalpon} (máx: ${capacidadGalpon.capacidadMaxima})`);
+
+      // Verificar si excede la capacidad máxima de la jaula
+      if (totalDespuesDeRegistroJaula > capacidadJaula.capacidadMaxima) {
+        console.log('❌ Error: Excede capacidad de jaula');
+        toastService.error(
+          'Capacidad Excedida - Jaula',
+          `La jaula ${masiveForm.jaula} no tiene suficiente espacio.\n` +
+          `Capacidad máxima: ${capacidadJaula.capacidadMaxima}\n` +
+          `Ocupación actual: ${capacidadJaula.ocupacionActual}\n` +
+          `Espacio disponible: ${capacidadJaula.espacioDisponible}\n` +
+          `Cuyes a registrar: ${masiveForm.cantidad}\n` +
+          `Total después: ${totalDespuesDeRegistroJaula}`
+        );
+        setMasiveLoading(false);
+        return;
+      } else {
+        console.log('✅ Capacidad de jaula OK');
+      }
+
+      // Verificar si excede la capacidad máxima del galpón
+      if (totalDespuesDeRegistroGalpon > capacidadGalpon.capacidadMaxima) {
+        toastService.error(
+          'Capacidad Excedida - Galpón',
+          `El galpón ${masiveForm.galpon} no tiene suficiente espacio.\n` +
+          `Capacidad máxima: ${capacidadGalpon.capacidadMaxima}\n` +
+          `Ocupación actual: ${capacidadGalpon.ocupacionActual}\n` +
+          `Espacio disponible: ${capacidadGalpon.espacioDisponible}\n` +
+          `Cuyes a registrar: ${masiveForm.cantidad}`
+        );
+        setMasiveLoading(false);
+        return;
+      }
+
+      // Advertencia si la jaula quedará con más del 80% de ocupación
+      const porcentajeOcupacionJaula = (totalDespuesDeRegistroJaula / capacidadJaula.capacidadMaxima) * 100;
+      const porcentajeOcupacionGalpon = (totalDespuesDeRegistroGalpon / capacidadGalpon.capacidadMaxima) * 100;
+
+      if (porcentajeOcupacionJaula > 80 || porcentajeOcupacionGalpon > 80) {
+        // Preparar datos para el diálogo de advertencia
+        setCapacidadWarningData({
+          jaula: capacidadJaula,
+          galpon: capacidadGalpon,
+          cantidad: cantidadNumerica,
+          totalJaula: totalDespuesDeRegistroJaula,
+          totalGalpon: totalDespuesDeRegistroGalpon,
+          porcentajeJaula: porcentajeOcupacionJaula,
+          porcentajeGalpon: porcentajeOcupacionGalpon
+        });
+        setOpenCapacidadWarningDialog(true);
+        setMasiveLoading(false);
+        return;
+      }
+    }
+
+    setMasiveLoading(true);
+    try {
+      const cuyes = [];
+
+      for (let i = 0; i < masiveForm.cantidad; i++) {
+        // Convertir a números para asegurar que no sean strings
+        const pesoMin = parseFloat(masiveForm.pesoMin.toString());
+        const pesoMax = parseFloat(masiveForm.pesoMax.toString());
+        const pesoRandom = pesoMin + (Math.random() * (pesoMax - pesoMin));
+        const sexoRandom = Math.random() > 0.5 ? 'M' : 'H';
+
+        const cuy = {
+          raza: masiveForm.raza,
+          fechaNacimiento: masiveForm.fechaNacimiento,
+          sexo: masiveForm.sexo === 'Aleatorio' ? sexoRandom : masiveForm.sexo,
+          peso: Math.round(pesoRandom * 100) / 100, // Redondear a 2 decimales
+          galpon: masiveForm.galpon,
+          jaula: masiveForm.jaula, // Usar la jaula específica seleccionada
+          estado: masiveForm.estado,
+          etapaVida: masiveForm.etapaVida,
+          proposito: masiveForm.proposito
+        };
+
+        console.log('🐹 Cuy a crear:', cuy);
+        console.log('🔢 Peso calculado:', cuy.peso, 'tipo:', typeof cuy.peso);
+        cuyes.push(cuy);
+      }
+
+      // Crear cuyes uno por uno (podríamos optimizar esto con un endpoint masivo)
+      let creados = 0;
+      let errores = 0;
+
+      for (const cuy of cuyes) {
+        try {
+          const response = await api.post('/cuyes', cuy);
+          if (response.data.success) {
+            creados++;
+          } else {
+            errores++;
+          }
+        } catch (error) {
+          errores++;
+        }
+      }
+
+      if (creados > 0) {
+        toastService.success(
+          'Registro Masivo Exitoso',
+          `Se crearon ${creados} cuyes exitosamente en ${masiveForm.galpon}-${masiveForm.jaula}${errores > 0 ? ` (${errores} errores)` : ''}`
         );
         setOpenMasiveDialog(false);
         fetchCuyes();
@@ -731,100 +1301,172 @@ const CuyesManagerFixed: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
-          <Pets sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Sistema de Cuyes
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
+      {/* Header Section */}
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'space-between',
+        alignItems: { xs: 'stretch', md: 'center' },
+        gap: { xs: 2, md: 0 },
+        mb: 3
+      }}>
+        {showTitle && (
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{
+              fontWeight: 'bold',
+              color: '#2e7d32',
+              textAlign: { xs: 'center', md: 'left' },
+              mb: { xs: 1, md: 0 }
+            }}
+          >
+            <Pets sx={{ mr: 1, verticalAlign: 'middle' }} />
+            {customTitle || 'Sistema de Cuyes'}
+          </Typography>
+        )}
+
+        {/* Action Buttons */}
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 2 },
+          alignItems: 'stretch'
+        }}>
           <Button
             variant="outlined"
             startIcon={<Analytics />}
             onClick={fetchEstadisticasAvanzadas}
+            sx={{
+              minWidth: { xs: '100%', sm: 'auto' },
+              order: { xs: 4, sm: 1 },
+              color: '#9c27b0',
+              borderColor: '#9c27b0',
+              '&:hover': {
+                borderColor: '#7b1fa2',
+                backgroundColor: alpha('#9c27b0', 0.04)
+              }
+            }}
           >
             Estadísticas
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={handleActualizarEtapas}
-          >
-            Actualizar Etapas
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => handleOpenCuyDialog()}
-            sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#45a049' } }}
-          >
-            Nuevo Cuy
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Groups />}
-            onClick={() => setOpenMasiveDialog(true)}
-            sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
-          >
-            Registro Masivo
-          </Button>
+
+          {showUpdateStagesButton && (
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={handleActualizarEtapas}
+              sx={{
+                minWidth: { xs: '100%', sm: 'auto' },
+                order: { xs: 3, sm: 2 }
+              }}
+            >
+              Actualizar Etapas
+            </Button>
+          )}
+
+          {showNewCuyButton && (
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenCuyDialog()}
+              sx={{
+                bgcolor: '#4caf50',
+                '&:hover': { bgcolor: '#45a049' },
+                minWidth: { xs: '100%', sm: 'auto' },
+                order: { xs: 1, sm: 3 }
+              }}
+            >
+              Nuevo Cuy
+            </Button>
+          )}
+
+          {showMassiveRegistration && (
+            <Button
+              variant="contained"
+              startIcon={<Groups />}
+              onClick={handleOpenMasiveDialog}
+              sx={{
+                bgcolor: '#2196f3',
+                '&:hover': { bgcolor: '#1976d2' },
+                minWidth: { xs: '100%', sm: 'auto' },
+                order: { xs: 2, sm: 4 }
+              }}
+            >
+              Registro Masivo
+            </Button>
+          )}
         </Box>
       </Box>
 
       {/* Resumen general */}
-      <Paper sx={{ p: 3, mb: 3, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
-        <Typography variant="h6" gutterBottom>
-          Resumen General
-        </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
-          <Box sx={{ textAlign: 'center' }}>
-            <Avatar sx={{ bgcolor: theme.palette.primary.main, mx: 'auto', mb: 1 }}>
-              <Pets />
-            </Avatar>
-            <Typography variant="h4">{stats.total}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total Cuyes
-            </Typography>
+      {showStats && (
+        <Paper sx={{ p: 3, mb: 3, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+          <Typography variant="h6" gutterBottom>
+            {customTitle || 'Resumen General'}
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: theme.palette.primary.main, mx: 'auto', mb: 1 }}>
+                <Pets />
+              </Avatar>
+              <Typography variant="h4">{stats.total}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Cuyes
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#2196f3', mx: 'auto', mb: 1 }}>
+                <Male />
+              </Avatar>
+              <Typography variant="h4">{stats.machos}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Machos
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#e91e63', mx: 'auto', mb: 1 }}>
+                <Female />
+              </Avatar>
+              <Typography variant="h4">{stats.hembras}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Hembras
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: theme.palette.warning.main, mx: 'auto', mb: 1 }}>
+                <Groups />
+              </Avatar>
+              <Typography variant="h4">{stats.crias}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Crías
+              </Typography>
+            </Box>
           </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Avatar sx={{ bgcolor: theme.palette.info.main, mx: 'auto', mb: 1 }}>
-              <Male />
-            </Avatar>
-            <Typography variant="h4">{stats.machos}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Machos
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Avatar sx={{ bgcolor: theme.palette.success.main, mx: 'auto', mb: 1 }}>
-              <Female />
-            </Avatar>
-            <Typography variant="h4">{stats.hembras}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Hembras
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'center' }}>
-            <Avatar sx={{ bgcolor: theme.palette.warning.main, mx: 'auto', mb: 1 }}>
-              <Groups />
-            </Avatar>
-            <Typography variant="h4">{stats.crias}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Crías
-            </Typography>
-          </Box>
-        </Box>
-      </Paper>
+        </Paper>
+      )}
 
-      {/* Barra de búsqueda y filtros */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* Search and Filter Bar */}
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
+        {/* Search Section */}
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2,
+          mb: 2,
+          alignItems: { xs: 'stretch', sm: 'center' }
+        }}>
           <TextField
             placeholder="Buscar cuyes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             size="small"
-            sx={{ minWidth: 250 }}
+            sx={{
+              flex: 1,
+              minWidth: { xs: '100%', sm: 250 },
+              maxWidth: { xs: '100%', sm: 400 }
+            }}
             InputProps={{
               startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
             }}
@@ -834,64 +1476,104 @@ const CuyesManagerFixed: React.FC = () => {
               }
             }}
           />
-          <Button
-            variant="contained"
-            startIcon={<Search />}
-            onClick={handleApplyFilters}
-            size="small"
-            sx={{ bgcolor: '#2196f3', '&:hover': { bgcolor: '#1976d2' } }}
-          >
-            Buscar
-          </Button>
-          <Button
-            variant={showFilters ? 'contained' : 'outlined'}
-            startIcon={<FilterList />}
-            onClick={() => setShowFilters(!showFilters)}
-            size="small"
-          >
-            Filtros
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => { fetchCuyes(); fetchStats(); }}
-            size="small"
-          >
-            Actualizar
-          </Button>
-          {Object.values(filters).some(f => f !== '') && (
-            <Button
-              variant="contained"
-              color="warning"
-              onClick={clearFilters}
-              size="small"
-            >
-              Limpiar Filtros
-            </Button>
-          )}
 
-          {/* Toggle de vista */}
-          <Box sx={{ display: 'flex', ml: 'auto' }}>
-            <Button
-              variant={viewMode === 'cards' ? 'contained' : 'outlined'}
-              startIcon={<ViewModule />}
-              onClick={() => setViewMode('cards')}
-              size="small"
-              sx={{ borderRadius: '8px 0 0 8px' }}
-            >
-              Tarjetas
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'contained' : 'outlined'}
-              startIcon={<TableChart />}
-              onClick={() => setViewMode('table')}
-              size="small"
-              sx={{ borderRadius: '0 8px 8px 0', borderLeft: 'none' }}
-            >
-              Tabla
-            </Button>
+          {/* Action Buttons */}
+          <Box sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 1,
+            alignItems: 'stretch'
+          }}>
+            {showSearchButton && (
+              <Button
+                variant="contained"
+                startIcon={<Search />}
+                onClick={handleApplyFilters}
+                size="small"
+                sx={{
+                  bgcolor: '#ff9800',
+                  '&:hover': { bgcolor: '#f57c00' },
+                  minWidth: { xs: '100%', sm: 'auto' }
+                }}
+              >
+                Buscar
+              </Button>
+            )}
+
+            {showFiltersButton && (
+              <Button
+                variant={showFilters ? 'contained' : 'outlined'}
+                startIcon={<FilterList />}
+                onClick={() => setShowFilters(!showFilters)}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Filtros
+              </Button>
+            )}
+
+            {showRefreshButton && (
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={() => { fetchCuyes(); fetchStats(); }}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Actualizar
+              </Button>
+            )}
+
+            {showFiltersButton && Object.values(filters).some(f => f !== '') && (
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={clearFilters}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Limpiar Filtros
+              </Button>
+            )}
           </Box>
         </Box>
+
+        {/* View Toggle */}
+        {showViewToggle && (
+          <Box sx={{
+            display: 'flex',
+            justifyContent: { xs: 'center', sm: 'flex-end' },
+            mt: { xs: 2, sm: 0 }
+          }}>
+            <Box sx={{ display: 'flex' }}>
+              <Button
+                variant={viewMode === 'cards' ? 'contained' : 'outlined'}
+                startIcon={<ViewModule />}
+                onClick={() => setViewMode('cards')}
+                size="small"
+                sx={{
+                  borderRadius: '8px 0 0 8px',
+                  minWidth: { xs: 120, sm: 'auto' }
+                }}
+              >
+                Tarjetas
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'contained' : 'outlined'}
+                startIcon={<TableChart />}
+                onClick={() => setViewMode('table')}
+                size="small"
+                sx={{
+                  borderRadius: '0 8px 8px 0',
+                  borderLeft: 'none',
+                  minWidth: { xs: 120, sm: 'auto' }
+                }}
+              >
+                Tabla
+              </Button>
+            </Box>
+          </Box>
+        )}
 
         {/* Panel de filtros */}
         {showFilters && (
@@ -1858,30 +2540,179 @@ const CuyesManagerFixed: React.FC = () => {
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-              <TextField
-                label="Galpón"
-                name="galpon"
-                value={masiveForm.galpon}
-                onChange={handleMasiveChange}
-                fullWidth
-                required
-                size="small"
-                placeholder="Ej: A, B, C"
-              />
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <FormControl fullWidth size="small" required>
+                    <InputLabel>Galpón</InputLabel>
+                    <Select
+                      name="galpon"
+                      value={masiveForm.galpon}
+                      onChange={handleMasiveChange}
+                      label="Galpón"
+                    >
+                      <MenuItem value="">
+                        <em>Seleccionar galpón</em>
+                      </MenuItem>
+                      {galpones.map(galpon => (
+                        <MenuItem key={galpon.id} value={galpon.nombre}>
+                          {galpon.nombre}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setOpenNewGalponDialog(true)}
+                    sx={{ minWidth: 'auto', px: 1 }}
+                  >
+                    <Add fontSize="small" />
+                  </Button>
+                </Box>
+              </Box>
 
-              <TextField
-                label="Jaula Inicial"
-                name="jaulaInicio"
-                type="number"
-                value={masiveForm.jaulaInicio}
-                onChange={handleMasiveChange}
-                fullWidth
-                required
-                size="small"
-                inputProps={{ min: 1 }}
-                helperText="Las jaulas se numerarán consecutivamente"
-              />
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <FormControl fullWidth size="small" required disabled={!masiveForm.galpon}>
+                    <InputLabel>Jaula</InputLabel>
+                    <Select
+                      name="jaula"
+                      value={masiveForm.jaula}
+                      onChange={handleMasiveChange}
+                      label="Jaula"
+                    >
+                      <MenuItem value="">
+                        <em>Seleccionar jaula</em>
+                      </MenuItem>
+                      {jaulasDisponibles.map(jaula => (
+                        <MenuItem key={jaula.id} value={jaula.nombre}>
+                          {jaula.nombre} {jaula.capacidadMaxima ? `(Cap: ${jaula.capacidadMaxima})` : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setNewJaulaForm(prev => ({ ...prev, galponNombre: masiveForm.galpon }));
+                      setOpenNewJaulaDialog(true);
+                    }}
+                    disabled={!masiveForm.galpon}
+                    sx={{ minWidth: 'auto', px: 1 }}
+                  >
+                    <Add fontSize="small" />
+                  </Button>
+                </Box>
+                {!masiveForm.galpon ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Primero selecciona un galpón
+                  </Typography>
+                ) : jaulasDisponibles.length === 0 ? (
+                  <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
+                    No hay jaulas disponibles en este galpón
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {jaulasDisponibles.length} jaula{jaulasDisponibles.length !== 1 ? 's' : ''} disponible{jaulasDisponibles.length !== 1 ? 's' : ''}
+                  </Typography>
+                )}
+              </Box>
             </Box>
+
+            {/* Información de capacidad en tiempo real */}
+            {(capacidadInfo.galpon || capacidadInfo.jaula) && (
+              <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: 'info.main' }}>
+                  📊 Información de Capacidad
+                </Typography>
+
+                {capacidadInfo.galpon && (
+                  <Box sx={{ mb: capacidadInfo.jaula ? 2 : 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                      🏠 Galpón {masiveForm.galpon}:
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(capacidadInfo.galpon.porcentajeOcupacion, 100)}
+                        sx={{
+                          flex: 1,
+                          height: 8,
+                          borderRadius: 4,
+                          bgcolor: alpha(theme.palette.grey[300], 0.3),
+                          '& .MuiLinearProgress-bar': {
+                            bgcolor: capacidadInfo.galpon.porcentajeOcupacion > 90
+                              ? theme.palette.error.main
+                              : capacidadInfo.galpon.porcentajeOcupacion > 80
+                                ? theme.palette.warning.main
+                                : theme.palette.success.main
+                          }
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ minWidth: 60, textAlign: 'right' }}>
+                        {capacidadInfo.galpon.ocupacionActual}/{capacidadInfo.galpon.capacidadMaxima}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      {capacidadInfo.galpon.porcentajeOcupacion.toFixed(1)}% ocupado • {capacidadInfo.galpon.espacioDisponible} espacios disponibles
+                    </Typography>
+                  </Box>
+                )}
+
+                {capacidadInfo.jaula && (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                      🏢 Jaula {masiveForm.jaula}:
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(capacidadInfo.jaula.porcentajeOcupacion, 100)}
+                        sx={{
+                          flex: 1,
+                          height: 8,
+                          borderRadius: 4,
+                          bgcolor: alpha(theme.palette.grey[300], 0.3),
+                          '& .MuiLinearProgress-bar': {
+                            bgcolor: capacidadInfo.jaula.porcentajeOcupacion > 90
+                              ? theme.palette.error.main
+                              : capacidadInfo.jaula.porcentajeOcupacion > 80
+                                ? theme.palette.warning.main
+                                : theme.palette.success.main
+                          }
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ minWidth: 60, textAlign: 'right' }}>
+                        {capacidadInfo.jaula.ocupacionActual}/{capacidadInfo.jaula.capacidadMaxima}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      {capacidadInfo.jaula.porcentajeOcupacion.toFixed(1)}% ocupado • {capacidadInfo.jaula.espacioDisponible} espacios disponibles
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Predicción después del registro */}
+                {capacidadInfo.jaula && masiveForm.cantidad > 0 && (
+                  <Alert
+                    severity={
+                      (capacidadInfo.jaula.ocupacionActual + masiveForm.cantidad) > capacidadInfo.jaula.capacidadMaxima
+                        ? 'error'
+                        : ((capacidadInfo.jaula.ocupacionActual + masiveForm.cantidad) / capacidadInfo.jaula.capacidadMaxima) > 0.8
+                          ? 'warning'
+                          : 'info'
+                    }
+                    sx={{ mt: 1.5 }}
+                  >
+                    <Typography variant="caption">
+                      <strong>Después del registro:</strong> {capacidadInfo.jaula.ocupacionActual + masiveForm.cantidad}/{capacidadInfo.jaula.capacidadMaxima} cuyes
+                      ({(((capacidadInfo.jaula.ocupacionActual + masiveForm.cantidad) / capacidadInfo.jaula.capacidadMaxima) * 100).toFixed(1)}%)
+                    </Typography>
+                  </Alert>
+                )}
+              </Paper>
+            )}
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
               <FormControl fullWidth size="small">
@@ -1942,12 +2773,20 @@ const CuyesManagerFixed: React.FC = () => {
                 • Peso: Entre <strong>{masiveForm.pesoMin} kg</strong> y <strong>{masiveForm.pesoMax} kg</strong> (aleatorio)
               </Typography>
               <Typography variant="body2">
-                • Ubicación: Galpón <strong>{masiveForm.galpon || '[Especificar]'}</strong>,
-                Jaulas <strong>{masiveForm.jaulaInicio || '[Especificar]'}</strong> a <strong>{masiveForm.jaulaInicio ? (parseInt(masiveForm.jaulaInicio) + masiveForm.cantidad - 1) : '[Calcular]'}</strong>
+                • Ubicación: Galpón <strong>{masiveForm.galpon || '[Seleccionar]'}</strong>,
+                Jaula <strong>{masiveForm.jaula || '[Seleccionar]'}</strong>
+              </Typography>
+              <Typography variant="body2">
+                • Todos los cuyes se crearán en la <strong>misma jaula</strong> especificada
               </Typography>
               <Typography variant="body2">
                 • Estado: <strong>{masiveForm.estado}</strong>, Etapa: <strong>{masiveForm.etapaVida}</strong>, Propósito: <strong>{masiveForm.proposito}</strong>
               </Typography>
+              {masiveForm.galpon && masiveForm.jaula && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Los {masiveForm.cantidad} cuyes se registrarán en: <strong>{masiveForm.galpon} - {masiveForm.jaula}</strong>
+                </Alert>
+              )}
             </Paper>
           </Stack>
         </DialogContent>
@@ -1980,6 +2819,375 @@ const CuyesManagerFixed: React.FC = () => {
         itemName="cuy"
         loading={deleteConfirmation.loading}
       />
+
+      {/* Diálogo de advertencia de capacidad */}
+      <Dialog
+        open={openCapacidadWarningDialog}
+        onClose={handleCapacidadWarningCancel}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: theme.shadows[20]
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          pb: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          bgcolor: alpha(theme.palette.warning.main, 0.1),
+          borderBottom: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
+        }}>
+          <Avatar sx={{
+            bgcolor: theme.palette.warning.main,
+            width: 48,
+            height: 48
+          }}>
+            <Warning />
+          </Avatar>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+              ⚠️ Advertencia de Capacidad
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              La ocupación superará el 80% de la capacidad
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 3 }}>
+          {capacidadWarningData && (
+            <Stack spacing={3}>
+              <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                  Se registrarán <strong>{capacidadWarningData.cantidad} cuyes</strong> en una ubicación con alta ocupación.
+                </Typography>
+              </Alert>
+
+              {/* Información de la Jaula */}
+              <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}` }}>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'warning.main' }}>
+                  <ViewModule /> Jaula {masiveForm.jaula}
+                </Typography>
+
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Ocupación actual:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {capacidadWarningData.jaula.ocupacionActual}/{capacidadWarningData.jaula.capacidadMaxima}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={capacidadWarningData.jaula.porcentajeOcupacion}
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      bgcolor: alpha(theme.palette.grey[300], 0.3),
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: theme.palette.warning.main
+                      }
+                    }}
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    {capacidadWarningData.jaula.porcentajeOcupacion.toFixed(1)}% ocupado
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Después del registro:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+                      {capacidadWarningData.totalJaula}/{capacidadWarningData.jaula.capacidadMaxima}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={capacidadWarningData.porcentajeJaula}
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      bgcolor: alpha(theme.palette.grey[300], 0.3),
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: capacidadWarningData.porcentajeJaula > 90
+                          ? theme.palette.error.main
+                          : theme.palette.warning.main
+                      }
+                    }}
+                  />
+                  <Typography variant="caption" color="warning.main" sx={{ fontWeight: 'medium' }}>
+                    {capacidadWarningData.porcentajeJaula.toFixed(1)}% ocupado
+                  </Typography>
+                </Box>
+              </Paper>
+
+              {/* Información del Galpón */}
+              <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'info.main' }}>
+                  <LocationOn /> Galpón {masiveForm.galpon}
+                </Typography>
+
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Ocupación actual:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {capacidadWarningData.galpon.ocupacionActual}/{capacidadWarningData.galpon.capacidadMaxima}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={capacidadWarningData.galpon.porcentajeOcupacion}
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      bgcolor: alpha(theme.palette.grey[300], 0.3),
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: theme.palette.info.main
+                      }
+                    }}
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    {capacidadWarningData.galpon.porcentajeOcupacion.toFixed(1)}% ocupado
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Después del registro:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'info.main' }}>
+                      {capacidadWarningData.totalGalpon}/{capacidadWarningData.galpon.capacidadMaxima}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={capacidadWarningData.porcentajeGalpon}
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      bgcolor: alpha(theme.palette.grey[300], 0.3),
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: capacidadWarningData.porcentajeGalpon > 90
+                          ? theme.palette.error.main
+                          : theme.palette.info.main
+                      }
+                    }}
+                  />
+                  <Typography variant="caption" color="info.main" sx={{ fontWeight: 'medium' }}>
+                    {capacidadWarningData.porcentajeGalpon.toFixed(1)}% ocupado
+                  </Typography>
+                </Box>
+              </Paper>
+
+              <Alert severity="info" sx={{ borderRadius: 2 }}>
+                <Typography variant="body2">
+                  <strong>Recomendación:</strong> Considera crear una nueva jaula o distribuir los cuyes en diferentes ubicaciones para mantener una ocupación óptima.
+                </Typography>
+              </Alert>
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, gap: 2, bgcolor: alpha(theme.palette.grey[50], 0.5) }}>
+          <Button
+            onClick={handleCapacidadWarningCancel}
+            variant="outlined"
+            size="large"
+            sx={{ minWidth: 120 }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCapacidadWarningConfirm}
+            variant="contained"
+            color="warning"
+            size="large"
+            disabled={masiveLoading}
+            startIcon={masiveLoading ? <CircularProgress size={20} /> : <CheckCircle />}
+            sx={{ minWidth: 160 }}
+          >
+            {masiveLoading ? 'Registrando...' : 'Continuar Registro'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo para crear nuevo galpón */}
+      <Dialog open={openNewGalponDialog} onClose={() => setOpenNewGalponDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocationOn color="primary" />
+            Crear Nuevo Galpón
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField
+              label="Nombre del Galpón"
+              name="nombre"
+              value={newGalponForm.nombre}
+              onChange={handleNewGalponChange}
+              fullWidth
+              required
+              size="small"
+              placeholder="Ej: A, B, C, Galpón Norte"
+            />
+
+            <TextField
+              label="Descripción"
+              name="descripcion"
+              value={newGalponForm.descripcion}
+              onChange={handleNewGalponChange}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+              placeholder="Descripción opcional del galpón"
+            />
+
+            <TextField
+              label="Ubicación"
+              name="ubicacion"
+              value={newGalponForm.ubicacion}
+              onChange={handleNewGalponChange}
+              fullWidth
+              size="small"
+              placeholder="Ej: Sector Norte, Patio Principal"
+            />
+
+            <TextField
+              label="Capacidad Máxima"
+              name="capacidadMaxima"
+              type="number"
+              value={newGalponForm.capacidadMaxima}
+              onChange={handleNewGalponChange}
+              fullWidth
+              size="small"
+              inputProps={{ min: 1, max: 200 }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button
+            onClick={() => setOpenNewGalponDialog(false)}
+            variant="outlined"
+            disabled={creatingGalpon}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreateGalpon}
+            variant="contained"
+            disabled={creatingGalpon}
+            startIcon={creatingGalpon ? <CircularProgress size={20} /> : <Add />}
+          >
+            {creatingGalpon ? 'Creando...' : 'Crear Galpón'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo para crear nueva jaula */}
+      <Dialog open={openNewJaulaDialog} onClose={() => setOpenNewJaulaDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ViewModule color="primary" />
+            Crear Nueva Jaula
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField
+              label="Nombre de la Jaula"
+              name="nombre"
+              value={newJaulaForm.nombre}
+              onChange={handleNewJaulaChange}
+              fullWidth
+              required
+              size="small"
+              placeholder="Ej: J1, J2, Jaula-A1"
+            />
+
+            <FormControl fullWidth size="small" required>
+              <InputLabel>Galpón</InputLabel>
+              <Select
+                name="galponNombre"
+                value={newJaulaForm.galponNombre}
+                onChange={handleNewJaulaChange}
+                label="Galpón"
+              >
+                {galpones.map(galpon => (
+                  <MenuItem key={galpon.id} value={galpon.nombre}>
+                    {galpon.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="Descripción"
+              name="descripcion"
+              value={newJaulaForm.descripcion}
+              onChange={handleNewJaulaChange}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+              placeholder="Descripción opcional de la jaula"
+            />
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              <TextField
+                label="Capacidad Máxima"
+                name="capacidadMaxima"
+                type="number"
+                value={newJaulaForm.capacidadMaxima}
+                onChange={handleNewJaulaChange}
+                fullWidth
+                size="small"
+                inputProps={{ min: 1, max: 50 }}
+              />
+
+              <FormControl fullWidth size="small">
+                <InputLabel>Tipo</InputLabel>
+                <Select
+                  name="tipo"
+                  value={newJaulaForm.tipo}
+                  onChange={handleNewJaulaChange}
+                  label="Tipo"
+                >
+                  <MenuItem value="Estándar">Estándar</MenuItem>
+                  <MenuItem value="Cría">Cría</MenuItem>
+                  <MenuItem value="Engorde">Engorde</MenuItem>
+                  <MenuItem value="Reproducción">Reproducción</MenuItem>
+                  <MenuItem value="Cuarentena">Cuarentena</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button
+            onClick={() => setOpenNewJaulaDialog(false)}
+            variant="outlined"
+            disabled={creatingJaula}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCreateJaula}
+            variant="contained"
+            disabled={creatingJaula}
+            startIcon={creatingJaula ? <CircularProgress size={20} /> : <Add />}
+          >
+            {creatingJaula ? 'Creando...' : 'Crear Jaula'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

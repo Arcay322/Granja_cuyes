@@ -5,9 +5,12 @@ export const getAllRegistrosSalud = async (req: Request, res: Response) => {
   try {
     const registros = await saludService.getAllRegistrosSalud();
     res.json(registros);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getAllRegistrosSalud:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -24,9 +27,12 @@ export const getRegistroSaludById = async (req: Request, res: Response) => {
     }
     
     res.json(registro);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getRegistroSaludById:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -34,9 +40,12 @@ export const createRegistroSalud = async (req: Request, res: Response) => {
   try {
     const registro = await saludService.createRegistroSalud(req.body);
     res.status(201).json(registro);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en createRegistroSalud:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -53,9 +62,12 @@ export const updateRegistroSalud = async (req: Request, res: Response) => {
     }
     
     res.json(registro);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en updateRegistroSalud:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -72,8 +84,11 @@ export const deleteRegistroSalud = async (req: Request, res: Response) => {
     }
     
     res.json({ message: 'Registro de salud eliminado' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en deleteRegistroSalud:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };

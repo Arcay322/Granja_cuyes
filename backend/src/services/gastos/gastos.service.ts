@@ -9,7 +9,14 @@ export const getGastoById = async (id: number) => {
   return prisma.gasto.findUnique({ where: { id } });
 };
 
-export const createGasto = async (data: any) => {
+interface CreateGastoData {
+  concepto: string;
+  fecha: string | Date;
+  monto: number | string;
+  categoria: string;
+}
+
+export const createGasto = async (data: CreateGastoData) => {
   // Sanitize data - convert string to correct types
   const sanitizedData = {
     ...data,
@@ -20,7 +27,7 @@ export const createGasto = async (data: any) => {
   return prisma.gasto.create({ data: sanitizedData });
 };
 
-export const updateGasto = async (id: number, data: any) => {
+export const updateGasto = async (id: number, data: Partial<CreateGastoData>) => {
   // Sanitize data - convert string to correct types
   const sanitizedData = {
     ...data,

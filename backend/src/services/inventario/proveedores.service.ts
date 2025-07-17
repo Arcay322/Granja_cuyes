@@ -9,11 +9,18 @@ export const getProveedorById = async (id: number): Promise<Proveedor | null> =>
   return prisma.proveedor.findUnique({ where: { id } });
 };
 
-export const createProveedor = async (data: any): Promise<Proveedor> => {
+interface CreateProveedorData {
+  nombre: string;
+  contacto: string;
+  telefono?: string;
+  direccion?: string;
+}
+
+export const createProveedor = async (data: CreateProveedorData): Promise<Proveedor> => {
   return prisma.proveedor.create({ data });
 };
 
-export const updateProveedor = async (id: number, data: any): Promise<Proveedor | null> => {
+export const updateProveedor = async (id: number, data: Partial<CreateProveedorData>): Promise<Proveedor | null> => {
   return prisma.proveedor.update({ where: { id }, data });
 };
 

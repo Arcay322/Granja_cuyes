@@ -9,6 +9,7 @@ const router = Router();
 // ===== RUTAS ESPECÍFICAS (deben ir antes de las rutas con parámetros) =====
 router.get('/stats', authenticateToken, cuyesController.getCuyesStats);
 router.get('/estadisticas-avanzadas', authenticateToken, cuyesController.getCuyesEstadisticasAvanzadas);
+router.get('/estadisticas-jaula', authenticateToken, cuyesController.getEstadisticasPorJaula);
 router.get('/disponibles-venta', authenticateToken, cuyesController.getCuyesDisponiblesParaVenta);
 router.get('/por-etapa/:etapa', authenticateToken, cuyesController.getCuyesPorEtapa);
 

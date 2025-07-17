@@ -83,9 +83,9 @@ export const createGalpon = async (req: Request, res: Response, next: NextFuncti
       data: galpon,
       message: 'Galpón creado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en createGalpon:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe un galpón con ese nombre',
@@ -119,9 +119,9 @@ export const updateGalpon = async (req: Request, res: Response, next: NextFuncti
       data: galpon,
       message: 'Galpón actualizado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en updateGalpon:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe un galpón con ese nombre',
@@ -154,9 +154,9 @@ export const deleteGalpon = async (req: Request, res: Response, next: NextFuncti
       success: true,
       message: 'Galpón eliminado exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en deleteGalpon:', error);
-    if (error.message && error.message.includes('cuyes asignados')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('cuyes asignados')) {
       return res.status(400).json({
         success: false,
         message: 'No se puede eliminar el galpón',
@@ -242,16 +242,16 @@ export const createJaula = async (req: Request, res: Response, next: NextFunctio
       data: jaula,
       message: 'Jaula creada exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en createJaula:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe una jaula con ese nombre en el galpón',
         error: 'Nombre duplicado'
       });
     }
-    if (error.code === 'P2003') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2003') {
       return res.status(400).json({
         success: false,
         message: 'El galpón especificado no existe',
@@ -285,9 +285,9 @@ export const updateJaula = async (req: Request, res: Response, next: NextFunctio
       data: jaula,
       message: 'Jaula actualizada exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en updateJaula:', error);
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return res.status(400).json({
         success: false,
         message: 'Ya existe una jaula con ese nombre en el galpón',
@@ -320,9 +320,9 @@ export const deleteJaula = async (req: Request, res: Response, next: NextFunctio
       success: true,
       message: 'Jaula eliminada exitosamente'
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en deleteJaula:', error);
-    if (error.message && error.message.includes('cuyes asignados')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('cuyes asignados')) {
       return res.status(400).json({
         success: false,
         message: 'No se puede eliminar la jaula',

@@ -24,15 +24,15 @@ export const createConsumo = async (req: Request, res: Response, next: NextFunct
   try {
     const consumo = await consumoService.createConsumo(req.body);
     res.status(201).json(consumo);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Manejar errores específicos de stock
-    if (error.message && error.message.includes('Stock insuficiente')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('Stock insuficiente')) {
       return res.status(400).json({ 
         message: 'Stock insuficiente', 
         error: error.message 
       });
     }
-    if (error.message && error.message.includes('no existe')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('no existe')) {
       return res.status(404).json({ 
         message: 'Alimento no encontrado', 
         error: error.message 
@@ -47,15 +47,15 @@ export const updateConsumo = async (req: Request, res: Response, next: NextFunct
     const consumo = await consumoService.updateConsumo(Number(req.params.id), req.body);
     if (!consumo) return res.status(404).json({ message: 'Consumo no encontrado' });
     res.json(consumo);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Manejar errores específicos de stock
-    if (error.message && error.message.includes('Stock insuficiente')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('Stock insuficiente')) {
       return res.status(400).json({ 
         message: 'Stock insuficiente', 
         error: error.message 
       });
     }
-    if (error.message && error.message.includes('no existe')) {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('no existe')) {
       return res.status(404).json({ 
         message: 'Alimento no encontrado', 
         error: error.message 

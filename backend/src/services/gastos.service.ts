@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 export const getAllGastos = async (
   skip: number = 0,
   take: number = 20,
-  select: Partial<Record<keyof Gasto, boolean>> = { id: true, descripcion: true, monto: true, fecha: true, categoria: true }
+  select: Partial<Record<keyof Gasto, boolean>> = { id: true, concepto: true, monto: true, fecha: true, categoria: true }
 ): Promise<Gasto[]> => {
   return prisma.gasto.findMany({
     skip,
@@ -24,40 +24,47 @@ export const getGastoById = async (id: number): Promise<Gasto | null> => {
   });
 };
 
-export const createGasto = async (data: any): Promise<Gasto> => {
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
-  }
+interface CreateGastoData {
+  concepto: string;
+  fecha: string | Date;
+  monto: number | string;
+  categoria: string;
+}
 
-  // Convertir el monto a número si viene como string
-  if (data.monto && typeof data.monto === 'string') {
-    data.monto = Number(data.monto);
-  }
+export const createGasto = async (data: CreateGastoData): Promise<Gasto> => {
+  // Sanitizar datos
+  const sanitizedData = {
+    concepto: data.concepto,
+    fecha: typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha,
+    monto: typeof data.monto === 'string' ? Number(data.monto) : data.monto,
+    categoria: data.categoria
+  };
 
-  return prisma.gasto.create({ data });
+  return prisma.gasto.create({ data: sanitizedData });
 };
 
-export const updateGasto = async (id: number, data: any): Promise<Gasto | null> => {
+export const updateGasto = async (id: number, data: Partial<CreateGastoData>): Promise<Gasto | null> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de gasto inválido');
   }
 
-  // Formatear la fecha si viene en formato string
-  if (data.fecha && typeof data.fecha === 'string') {
-    data.fecha = new Date(data.fecha);
+  // Sanitizar datos
+  const sanitizedData: any = {};
+  
+  if (data.concepto !== undefined) sanitizedData.concepto = data.concepto;
+  if (data.fecha !== undefined) {
+    sanitizedData.fecha = typeof data.fecha === 'string' ? new Date(data.fecha) : data.fecha;
   }
-
-  // Convertir el monto a número si viene como string
-  if (data.monto && typeof data.monto === 'string') {
-    data.monto = Number(data.monto);
+  if (data.monto !== undefined) {
+    sanitizedData.monto = typeof data.monto === 'string' ? Number(data.monto) : data.monto;
   }
+  if (data.categoria !== undefined) sanitizedData.categoria = data.categoria;
 
   return prisma.gasto.update({
     where: {
       id: Number(id)
     },
-    data
+    data: sanitizedData
   });
 };
 

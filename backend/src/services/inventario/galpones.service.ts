@@ -107,7 +107,7 @@ export const deleteGalpon = async (id: number): Promise<boolean> => {
     });
 
     return !!deleted;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al eliminar galpón:', error);
     throw error;
   }
@@ -139,14 +139,75 @@ export const getJaulaById = async (id: number): Promise<Jaula | null> => {
   });
 };
 
-export const getJaulasByGalpon = async (galponNombre: string): Promise<Jaula[]> => {
-  return prisma.jaula.findMany({
+export const getJaulasByGalpon = async (galponNombre: string) => {
+  const jaulas = await prisma.jaula.findMany({
     where: { galponNombre },
     include: {
       galpon: true
     },
     orderBy: { nombre: 'asc' }
   });
+
+  // Obtener información de ocupación para cada jaula
+  const jaulasConOcupacion = await Promise.all(
+    jaulas.map(async (jaula) => {
+      // Contar cuyes en esta jaula
+      const totalCuyes = await prisma.cuy.count({
+        where: {
+          galpon: galponNombre,
+          jaula: jaula.nombre,
+          estado: { not: 'Fallecido' } // Excluir cuyes fallecidos
+        }
+      });
+
+      // Contar cuyes por estado
+      const cuyesActivos = await prisma.cuy.count({
+        where: {
+          galpon: galponNombre,
+          jaula: jaula.nombre,
+          estado: 'Activo'
+        }
+      });
+
+      const cuyesEnfermos = await prisma.cuy.count({
+        where: {
+          galpon: galponNombre,
+          jaula: jaula.nombre,
+          estado: 'Enfermo'
+        }
+      });
+
+      // Calcular porcentaje de ocupación
+      const porcentajeOcupacion = jaula.capacidadMaxima > 0 
+        ? (totalCuyes / jaula.capacidadMaxima) * 100 
+        : 0;
+
+      // Determinar estado de la jaula
+      let estadoOcupacion = 'Normal';
+      if (totalCuyes === 0) {
+        estadoOcupacion = 'Vacía';
+      } else if (porcentajeOcupacion >= 100) {
+        estadoOcupacion = 'Llena';
+      } else if (porcentajeOcupacion >= 80) {
+        estadoOcupacion = 'Casi Llena';
+      }
+
+      return {
+        ...jaula,
+        ocupacion: {
+          totalCuyes,
+          cuyesActivos,
+          cuyesEnfermos,
+          capacidadMaxima: jaula.capacidadMaxima,
+          porcentajeOcupacion: Math.round(porcentajeOcupacion),
+          estadoOcupacion,
+          espaciosLibres: Math.max(0, jaula.capacidadMaxima - totalCuyes)
+        }
+      };
+    })
+  );
+
+  return jaulasConOcupacion;
 };
 
 export const createJaula = async (data: JaulaInput): Promise<Jaula> => {
@@ -207,7 +268,7 @@ export const deleteJaula = async (id: number): Promise<boolean> => {
     });
 
     return !!deleted;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al eliminar jaula:', error);
     throw error;
   }

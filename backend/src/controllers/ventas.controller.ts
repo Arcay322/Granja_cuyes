@@ -5,9 +5,12 @@ export const getAllVentas = async (req: Request, res: Response) => {
   try {
     const ventas = await ventasService.getAllVentas();
     res.json(ventas);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getAllVentas:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -24,9 +27,12 @@ export const getVentaById = async (req: Request, res: Response) => {
     }
     
     res.json(venta);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en getVentaById:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -34,9 +40,12 @@ export const createVenta = async (req: Request, res: Response) => {
   try {
     const venta = await ventasService.createVenta(req.body);
     res.status(201).json(venta);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en createVenta:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -53,9 +62,12 @@ export const updateVenta = async (req: Request, res: Response) => {
     }
     
     res.json(venta);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en updateVenta:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };
 
@@ -72,8 +84,11 @@ export const deleteVenta = async (req: Request, res: Response) => {
     }
     
     res.json({ message: 'Venta eliminada' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en deleteVenta:', error);
-    res.status(500).json({ message: 'Error interno del servidor', error: error?.message || 'Error desconocido' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor', 
+      error: error && typeof error === 'object' && 'message' in error ? error.message : 'Error desconocido' 
+    });
   }
 };

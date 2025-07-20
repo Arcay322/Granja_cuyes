@@ -452,3 +452,68 @@ export const sugerirUbicacionCuy = async (sexo: string, proposito: string) => {
     razon: `Galpón con ${galponSugerido.porcentajeOcupacion.toFixed(1)}% de ocupación, jaula con ${jaulasDisponibles[0].espacioDisponible} espacios disponibles`
   };
 };
+
+// Obtener información de capacidad de una jaula específica
+export const getJaulaCapacityInfo = async (galponNombre: string, jaulaNombre: string) => {
+  try {
+    // Buscar la jaula
+    const jaula = await prisma.jaula.findFirst({
+      where: {
+        galponNombre: galponNombre,
+        nombre: jaulaNombre
+      },
+      include: {
+        galpon: true
+      }
+    });
+
+    if (!jaula) {
+      return null;
+    }
+
+    // Contar cuyes actuales en la jaula
+    const cuyesEnJaula = await prisma.cuy.findMany({
+      where: {
+        galpon: galponNombre,
+        jaula: jaulaNombre,
+        estado: 'Activo'
+      },
+      select: {
+        id: true,
+        raza: true,
+        sexo: true,
+        etapaVida: true,
+        proposito: true,
+        peso: true,
+        fechaNacimiento: true
+      }
+    });
+
+    const ocupacionActual = cuyesEnJaula.length;
+    const espacioDisponible = jaula.capacidadMaxima - ocupacionActual;
+    const porcentajeOcupacion = (ocupacionActual / jaula.capacidadMaxima) * 100;
+
+    return {
+      jaula: {
+        id: jaula.id,
+        nombre: jaula.nombre,
+        galpon: jaula.galponNombre,
+        tipo: jaula.tipo,
+        capacidadMaxima: jaula.capacidadMaxima,
+        estado: jaula.estado
+      },
+      ocupacionActual,
+      espacioDisponible,
+      porcentajeOcupacion: Math.round(porcentajeOcupacion * 10) / 10,
+      cuyesEnJaula,
+      advertencias: {
+        sobrepoblada: porcentajeOcupacion > 90,
+        llena: espacioDisponible <= 0,
+        critica: espacioDisponible < 0
+      }
+    };
+  } catch (error) {
+    console.error('Error en getJaulaCapacityInfo:', error);
+    throw error;
+  }
+};

@@ -25,6 +25,7 @@ router.get('/:galpon/estadisticas', authenticateToken, galponesController.getEst
 router.get('/jaulas/todas', authenticateToken, galponesController.getAllJaulas);
 router.get('/jaulas/:id', authenticateToken, galponesController.getJaulaById);
 router.get('/:galpon/jaulas', authenticateToken, galponesController.getJaulasByGalpon);
+router.get('/:galpon/jaulas/:jaula/capacity', authenticateToken, galponesController.checkJaulaCapacity);
 router.post('/jaulas', authenticateToken, validateRequest(createJaulaSchema), galponesController.createJaula);
 router.put('/jaulas/:id', authenticateToken, validateRequestWithParams(updateJaulaSchema), galponesController.updateJaula);
 router.delete('/jaulas/:id', authenticateToken, galponesController.deleteJaula);

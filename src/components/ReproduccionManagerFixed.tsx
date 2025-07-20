@@ -1,0 +1,2304 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box, Typography, Card, CardContent, Avatar, Chip, Button, Dialog,
+  DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel,
+  Select, MenuItem, Alert, CircularProgress, useTheme, alpha, Badge,
+  Paper, Divider, IconButton, Tooltip, Stack, TablePagination, LinearProgress,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox,
+  Tabs, Tab
+} from '../utils/mui';
+import {
+  Pets, Add, Edit, Delete, Analytics, Warning, Groups, TrendingUp,
+  Male, Female, Search, FilterList, Refresh, History, Close, CalendarMonth,
+  Scale, LocationOn, Info, CheckCircle, ViewModule, ViewList, TableChart,
+  PregnantWoman, ChildCare, Schedule, NotificationImportant
+} from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
+import api from '../services/api';
+import toastService from '../services/toastService';
+
+import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import AlertasReproduccion from './AlertasReproduccion';
+
+interface ReproduccionManagerProps {
+  // Props para configurar qué funcionalidades mostrar
+  showNewPrenezButton?: boolean;
+  showNewCamadaButton?: boolean;
+  showViewToggle?: boolean;
+  showFiltersPanel?: boolean;
+  showStats?: boolean;
+  showTitle?: boolean;
+  showAlertas?: boolean;
+  showFiltersButton?: boolean;
+  showRefreshButton?: boolean;
+  showSearchButton?: boolean;
+  // Props para filtros preestablecidos
+  presetFilters?: {
+    galpon?: string;
+    jaula?: string;
+  };
+  // Props para personalizar el título
+  customTitle?: string;
+  // Vista inicial
+  initialView?: 'prenez' | 'camadas';
+}
+
+interface Prenez {
+  id: number;
+  madreId: number;
+  padreId?: number;
+  fechaPrenez: string;
+  fechaProbableParto: string;
+  notas?: string;
+  estado: string;
+  diasGestacion?: number;
+  diasRestantes?: number;
+  estadoCalculado?: string;
+  madre?: {
+    id: number;
+    raza: string;
+    galpon: string;
+    jaula: string;
+    etapaVida: string;
+  };
+  padre?: {
+    id: number;
+    raza: string;
+    galpon: string;
+    jaula: string;
+  };
+  camada?: {
+    id: number;
+    fechaNacimiento: string;
+    numVivos: number;
+    numMuertos: number;
+  };
+}
+
+interface Camada {
+  id: number;
+  fechaNacimiento: string;
+  numVivos: number;
+  numMuertos: number;
+  padreId?: number;
+  madreId?: number;
+  edadDias?: number;
+  tasaSupervivencia?: number;
+  totalCrias?: number;
+  criasActuales?: number;
+  madre?: {
+    id: number;
+    raza: string;
+    galpon: string;
+    jaula: string;
+    etapaVida: string;
+  };
+  padre?: {
+    id: number;
+    raza: string;
+    galpon: string;
+    jaula: string;
+  };
+  cuyes?: any[];
+}
+
+interface Cuy {
+  id: number;
+  raza: string;
+  galpon: string;
+  jaula: string;
+  sexo: string;
+  etapaVida: string;
+  estado: string;
+  fechaNacimiento: string;
+}
+
+interface PrenezFormData {
+  madreId: number | '';
+  padreId: number | '';
+  fechaPrenez: string;
+  notas: string;
+}
+
+interface CamadaFormData {
+  fechaNacimiento: string;
+  numVivos: number | '';
+  numMuertos: number | '';
+  madreId: number | '';
+  padreId: number | '';
+  prenezId: number | '';
+  numMachos: number | '';
+  numHembras: number | '';
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+interface EstadisticasReproduccion {
+  resumen: {
+    totalPreneces: number;
+    prenecesActivas: number;
+    prenecesCompletadas: number;
+    prenecesFallidas: number;
+    totalCamadas: number;
+    camadasRecientes: number;
+    proximosPartos: number;
+    prenecesVencidas: number;
+  };
+  promedios: {
+    criasPorCamada: number;
+    vivosPorCamada: number;
+    tasaExito: number;
+  };
+}
+
+const ReproduccionManagerFixed: React.FC<ReproduccionManagerProps> = ({
+  showNewPrenezButton = true,
+  showNewCamadaButton = true,
+  showViewToggle = true,
+  showFiltersPanel = true,
+  showStats = true,
+  showTitle = true,
+  showAlertas = true,
+  showFiltersButton = true,
+  showRefreshButton = false,
+  showSearchButton = true,
+  presetFilters,
+  customTitle,
+  initialView = 'prenez'
+}) => {
+  const theme = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Estados principales
+  const [currentTab, setCurrentTab] = useState<'prenez' | 'camadas'>(initialView);
+  const [preneces, setPreneces] = useState<Prenez[]>([]);
+  const [camadas, setCamadas] = useState<Camada[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Estados de paginación
+  const [prenezPagination, setPrenezPagination] = useState<Pagination>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  
+  const [camadaPagination, setCamadaPagination] = useState<Pagination>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  
+  // Estados de filtros
+  const [filters, setFilters] = useState({
+    estado: '',
+    galpon: presetFilters?.galpon || '',
+    jaula: presetFilters?.jaula || '',
+    fechaDesde: '',
+    fechaHasta: ''
+  });
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Estados de estadísticas
+  const [stats, setStats] = useState<EstadisticasReproduccion>({
+    resumen: {
+      totalPreneces: 0,
+      prenecesActivas: 0,
+      prenecesCompletadas: 0,
+      prenecesFallidas: 0,
+      totalCamadas: 0,
+      camadasRecientes: 0,
+      proximosPartos: 0,
+      prenecesVencidas: 0
+    },
+    promedios: {
+      criasPorCamada: 0,
+      vivosPorCamada: 0,
+      tasaExito: 0
+    }
+  });
+  
+  // Estados de vista
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Estados para formularios
+  const [showPrenezForm, setShowPrenezForm] = useState(false);
+  const [showCamadaForm, setShowCamadaForm] = useState(false);
+  const [editingPrenez, setEditingPrenez] = useState<Prenez | null>(null);
+  const [editingCamada, setEditingCamada] = useState<Camada | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+  
+  // Estados para datos de formularios
+  const [prenezFormData, setPrenezFormData] = useState<PrenezFormData>({
+    madreId: '',
+    padreId: '',
+    fechaPrenez: new Date().toISOString().split('T')[0],
+    notas: ''
+  });
+  
+  const [camadaFormData, setCamadaFormData] = useState<CamadaFormData>({
+    fechaNacimiento: new Date().toISOString().split('T')[0],
+    numVivos: '',
+    numMuertos: '',
+    madreId: '',
+    padreId: '',
+    prenezId: '',
+    numMachos: '',
+    numHembras: ''
+  });
+
+  // Estados para datos auxiliares
+  const [availableCuyes, setAvailableCuyes] = useState<Cuy[]>([]);
+  const [availablePreneces, setAvailablePreneces] = useState<Prenez[]>([]);
+  
+  // Estados para verificación de capacidad de jaula
+  const [jaulaCapacityInfo, setJaulaCapacityInfo] = useState<{
+    capacidadMaxima: number;
+    ocupacionActual: number;
+    espacioDisponible: number;
+    cuyesEnJaula: any[];
+    advertencia: boolean;
+  } | null>(null);
+  const [showCapacityDialog, setShowCapacityDialog] = useState(false);
+
+  // Estados para confirmación de eliminación
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: number;
+    type: string;
+    name: string;
+  } | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Estados para gestión de jaula
+  const [showJaulaManagementDialog, setShowJaulaManagementDialog] = useState(false);
+  const [showTrasladoDialog, setShowTrasladoDialog] = useState(false);
+  const [availableJaulas, setAvailableJaulas] = useState<any[]>([]);
+  const [selectedNewJaula, setSelectedNewJaula] = useState<{galpon: string, jaula: string} | null>(null);
+
+  // Funciones de carga de datos
+  const fetchPreneces = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: prenezPagination.page.toString(),
+        limit: prenezPagination.limit.toString(),
+        ...(filters.estado && { estado: filters.estado }),
+        ...(filters.galpon && { galpon: filters.galpon }),
+        ...(filters.jaula && { jaula: filters.jaula }),
+        ...(filters.fechaDesde && { fechaDesde: filters.fechaDesde }),
+        ...(filters.fechaHasta && { fechaHasta: filters.fechaHasta }),
+        ...(searchTerm && { search: searchTerm })
+      });
+
+      const response = await api.get(`/reproduccion/prenez?${params}`);
+      const data = response.data;
+
+      if (data.success) {
+        setPreneces(data.data);
+        setPrenezPagination(data.pagination);
+      }
+    } catch (error) {
+      console.error('Error al obtener preñeces:', error);
+      toastService.error('Error', 'No se pudieron cargar las preñeces');
+    } finally {
+      setLoading(false);
+    }
+  }, [prenezPagination.page, prenezPagination.limit, filters, searchTerm]);
+
+  const fetchCamadas = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: camadaPagination.page.toString(),
+        limit: camadaPagination.limit.toString(),
+        ...(filters.galpon && { galpon: filters.galpon }),
+        ...(filters.jaula && { jaula: filters.jaula }),
+        ...(filters.fechaDesde && { fechaDesde: filters.fechaDesde }),
+        ...(filters.fechaHasta && { fechaHasta: filters.fechaHasta }),
+        ...(searchTerm && { search: searchTerm })
+      });
+
+      const response = await api.get(`/reproduccion/camadas?${params}`);
+      const data = response.data;
+
+      if (data.success) {
+        setCamadas(data.data);
+        setCamadaPagination(data.pagination);
+      }
+    } catch (error) {
+      console.error('Error al obtener camadas:', error);
+      toastService.error('Error', 'No se pudieron cargar las camadas');
+    } finally {
+      setLoading(false);
+    }
+  }, [camadaPagination.page, camadaPagination.limit, filters, searchTerm]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await api.get('/reproduccion/prenez/stats');
+      if (response.data.success) {
+        setStats(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
+    }
+  }, []);
+
+  // Funciones para cargar datos auxiliares
+  const fetchAvailableCuyes = useCallback(async () => {
+    try {
+      const response = await api.get('/cuyes', {
+        params: {
+          estado: 'Activo',
+          limit: 500,
+          page: 1
+        }
+      });
+      if (response.data.success) {
+        setAvailableCuyes(response.data.data);
+        console.log('Cuyes cargados:', response.data.data.length);
+      } else {
+        console.error('Error en respuesta de cuyes:', response.data);
+        toastService.error('Error', 'No se pudieron cargar los cuyes disponibles');
+      }
+    } catch (error: any) {
+      console.error('Error al obtener cuyes disponibles:', error);
+      toastService.error('Error', 'Error al cargar cuyes: ' + (error.response?.data?.message || error.message));
+    }
+  }, []);
+
+  const fetchAvailablePreneces = useCallback(async () => {
+    try {
+      const response = await api.get('/reproduccion/prenez/activas');
+      if (response.data.success) {
+        setAvailablePreneces(response.data.data);
+        console.log('Preñeces activas cargadas:', response.data.data.length);
+      } else {
+        console.error('Error en respuesta de preñeces:', response.data);
+      }
+    } catch (error: any) {
+      console.error('Error al obtener preñeces disponibles:', error);
+      toastService.error('Error', 'Error al cargar preñeces: ' + (error.response?.data?.message || error.message));
+    }
+  }, []);
+
+  // Función para verificar capacidad de jaula
+  const checkJaulaCapacity = useCallback(async (madreId: number, numCriasVivas: number) => {
+    try {
+      const madre = availableCuyes.find(c => c.id === madreId);
+      if (!madre) {
+        console.log('❌ No se encontró la madre con ID:', madreId);
+        return null;
+      }
+
+      console.log('🔍 Verificando capacidad para madre:', madre.galpon, madre.jaula);
+
+      // Obtener información de la jaula y cuyes actuales
+      const response = await api.get(`/galpones/${madre.galpon}/jaulas/${madre.jaula}/capacity`);
+      console.log('📡 Respuesta del servidor:', response.data);
+      
+      if (response.data.success) {
+        const capacityInfo = response.data.data;
+        const espacioNecesario = numCriasVivas; // Solo las crías, la madre ya está en la jaula
+        const espacioDisponible = capacityInfo.espacioDisponible;
+        
+        const info = {
+          capacidadMaxima: capacityInfo.jaula?.capacidadMaxima || capacityInfo.capacidadMaxima,
+          ocupacionActual: capacityInfo.ocupacionActual,
+          espacioDisponible: espacioDisponible,
+          cuyesEnJaula: capacityInfo.cuyesEnJaula || [],
+          advertencia: espacioNecesario > espacioDisponible
+        };
+
+        console.log('📊 Información de capacidad calculada:', info);
+        console.log(`🔢 Espacio necesario: ${espacioNecesario}, Espacio disponible: ${espacioDisponible}`);
+
+        // Actualizar el estado para el diálogo
+        setJaulaCapacityInfo(info);
+        
+        // Devolver la información para uso inmediato
+        return info;
+      } else {
+        console.log('❌ Error en respuesta del servidor:', response.data);
+        return null;
+      }
+    } catch (error: any) {
+      console.error('❌ Error al verificar capacidad de jaula:', error);
+      console.error('Detalles del error:', error.response?.data);
+      
+      // Si hay error, mostrar advertencia por seguridad
+      toastService.warning('Advertencia', 'No se pudo verificar la capacidad de la jaula. Verifique manualmente el espacio disponible.');
+      return null;
+    }
+  }, [availableCuyes]);
+
+  // Funciones para manejar formularios
+  const handleOpenPrenezForm = (prenez?: Prenez) => {
+    if (prenez) {
+      setEditingPrenez(prenez);
+      setPrenezFormData({
+        madreId: prenez.madreId,
+        padreId: prenez.padreId || '',
+        fechaPrenez: prenez.fechaPrenez.split('T')[0],
+        notas: prenez.notas || ''
+      });
+    } else {
+      setEditingPrenez(null);
+      setPrenezFormData({
+        madreId: '',
+        padreId: '',
+        fechaPrenez: new Date().toISOString().split('T')[0],
+        notas: ''
+      });
+    }
+    fetchAvailableCuyes();
+    setShowPrenezForm(true);
+  };
+
+  const handleOpenCamadaForm = (camada?: Camada) => {
+    if (camada) {
+      setEditingCamada(camada);
+      setCamadaFormData({
+        fechaNacimiento: camada.fechaNacimiento.split('T')[0],
+        numVivos: camada.numVivos,
+        numMuertos: camada.numMuertos,
+        madreId: camada.madreId || '',
+        padreId: camada.padreId || '',
+        prenezId: '',
+        numMachos: '',
+        numHembras: ''
+      });
+    } else {
+      setEditingCamada(null);
+      setCamadaFormData({
+        fechaNacimiento: new Date().toISOString().split('T')[0],
+        numVivos: '',
+        numMuertos: '',
+        madreId: '',
+        padreId: '',
+        prenezId: '',
+        numMachos: '',
+        numHembras: ''
+      });
+    }
+    fetchAvailableCuyes();
+    fetchAvailablePreneces();
+    setShowCamadaForm(true);
+  };
+
+  const handleCloseForms = () => {
+    setShowPrenezForm(false);
+    setShowCamadaForm(false);
+    setEditingPrenez(null);
+    setEditingCamada(null);
+    setPrenezFormData({
+      madreId: '',
+      padreId: '',
+      fechaPrenez: new Date().toISOString().split('T')[0],
+      notas: ''
+    });
+    setCamadaFormData({
+      fechaNacimiento: new Date().toISOString().split('T')[0],
+      numVivos: '',
+      numMuertos: '',
+      madreId: '',
+      padreId: '',
+      prenezId: '',
+      numMachos: '',
+      numHembras: ''
+    });
+  };
+
+  const handleSubmitPrenez = async () => {
+    try {
+      setFormLoading(true);
+      
+      // Validaciones
+      if (!prenezFormData.madreId) {
+        toastService.error('Error', 'Debe seleccionar una madre');
+        return;
+      }
+
+      // Calcular fecha probable de parto (70 días después)
+      const fechaPrenez = new Date(prenezFormData.fechaPrenez);
+      const fechaProbableParto = new Date(fechaPrenez);
+      fechaProbableParto.setDate(fechaProbableParto.getDate() + 70);
+
+      const dataToSend = {
+        madreId: Number(prenezFormData.madreId),
+        padreId: prenezFormData.padreId ? Number(prenezFormData.padreId) : null,
+        fechaPrenez: prenezFormData.fechaPrenez,
+        fechaProbableParto: fechaProbableParto.toISOString().split('T')[0],
+        notas: prenezFormData.notas || null
+      };
+
+      if (editingPrenez) {
+        await api.put(`/reproduccion/prenez/${editingPrenez.id}`, dataToSend);
+        toastService.success('Éxito', 'Preñez actualizada correctamente');
+      } else {
+        await api.post('/reproduccion/prenez', dataToSend);
+        toastService.success('Éxito', 'Preñez registrada correctamente');
+      }
+
+      handleCloseForms();
+      fetchPreneces();
+      fetchStats();
+    } catch (error: unknown) {
+      console.error('Error al guardar preñez:', error);
+      toastService.error('Error', error.response?.data?.message || 'Error al guardar la preñez');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleSubmitCamada = async () => {
+    try {
+      setFormLoading(true);
+      
+      // Validaciones
+      if (!camadaFormData.numVivos && camadaFormData.numVivos !== 0) {
+        toastService.error('Error', 'Debe especificar el número de crías vivas');
+        return;
+      }
+      if (!camadaFormData.numMuertos && camadaFormData.numMuertos !== 0) {
+        toastService.error('Error', 'Debe especificar el número de crías muertas');
+        return;
+      }
+
+      // Validar distribución de sexos para crías vivas
+      const numVivos = Number(camadaFormData.numVivos);
+      const numMachos = Number(camadaFormData.numMachos) || 0;
+      const numHembras = Number(camadaFormData.numHembras) || 0;
+
+      if (numVivos > 0 && (numMachos + numHembras !== numVivos)) {
+        toastService.error('Error', `La suma de machos (${numMachos}) y hembras (${numHembras}) debe ser igual al número de crías vivas (${numVivos})`);
+        return;
+      }
+
+      // Verificar capacidad de jaula si hay crías vivas y madre seleccionada
+      if (numVivos > 0 && camadaFormData.madreId) {
+        console.log('🔍 Verificando capacidad de jaula para madre ID:', camadaFormData.madreId, 'con', numVivos, 'crías');
+        const capacityInfo = await checkJaulaCapacity(Number(camadaFormData.madreId), numVivos);
+        
+        // Si hay advertencia de capacidad, mostrar diálogo y BLOQUEAR el registro
+        if (capacityInfo?.advertencia) {
+          console.log('⚠️ ADVERTENCIA: Capacidad insuficiente - BLOQUEANDO registro');
+          console.log('📊 Información de capacidad:', capacityInfo);
+          setShowCapacityDialog(true);
+          return; // BLOQUEAR el registro hasta que el usuario tome una decisión
+        } else {
+          console.log('✅ Capacidad de jaula suficiente - Continuando con el registro');
+        }
+      }
+
+      const dataToSend = {
+        fechaNacimiento: camadaFormData.fechaNacimiento,
+        numVivos: numVivos,
+        numMuertos: Number(camadaFormData.numMuertos),
+        madreId: camadaFormData.madreId ? Number(camadaFormData.madreId) : null,
+        padreId: camadaFormData.padreId ? Number(camadaFormData.padreId) : null,
+        prenezId: camadaFormData.prenezId ? Number(camadaFormData.prenezId) : null,
+        // Datos para crear crías automáticamente
+        numMachos: numMachos,
+        numHembras: numHembras,
+        crearCuyes: numVivos > 0 // Solo crear cuyes si hay crías vivas
+      };
+
+      if (editingCamada) {
+        await api.put(`/reproduccion/camadas/${editingCamada.id}`, dataToSend);
+        toastService.success('Éxito', 'Camada actualizada correctamente');
+      } else {
+        await api.post('/reproduccion/camadas', dataToSend);
+        toastService.success('Éxito', `Camada registrada correctamente${numVivos > 0 ? ` y ${numVivos} crías creadas automáticamente` : ''}`);
+      }
+
+      handleCloseForms();
+      fetchCamadas();
+      fetchStats();
+    } catch (error: unknown) {
+      console.error('Error al guardar camada:', error);
+      toastService.error('Error', error.response?.data?.message || 'Error al guardar la camada');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Funciones para manejar eliminación
+  const handleDeleteClick = (id: number, type: string, name: string) => {
+    setItemToDelete({ id, type, name });
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteDialog(false);
+    setItemToDelete(null);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteDialog(false);
+    setItemToDelete(null);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      if (itemToDelete.type === 'prenez') {
+        await api.delete(`/reproduccion/prenez/${itemToDelete.id}`);
+        toastService.success('Éxito', 'Preñez eliminada correctamente');
+        fetchPreneces();
+      } else if (itemToDelete.type === 'camada') {
+        await api.delete(`/reproduccion/camadas/${itemToDelete.id}`);
+        toastService.success('Éxito', 'Camada eliminada correctamente');
+        fetchCamadas();
+      }
+      fetchStats();
+      handleDeleteConfirm();
+    } catch (error: unknown) {
+      console.error('Error al eliminar:', error);
+      toastService.error('Error', error.response?.data?.message || 'Error al eliminar el elemento');
+    }
+  };
+
+  // Funciones para gestión de jaula
+  const handleOpenJaulaManagement = () => {
+    setShowCapacityDialog(false);
+    setShowJaulaManagementDialog(true);
+  };
+
+  const handleOpenTraslado = async () => {
+    setShowCapacityDialog(false);
+    
+    try {
+      // Obtener jaulas disponibles con espacio suficiente
+      const numCriasVivas = Number(camadaFormData.numVivos);
+      const espacioNecesario = numCriasVivas + 1; // +1 por la madre
+      
+      const response = await api.get('/galpones/sugerir-ubicacion', {
+        params: {
+          sexo: 'H',
+          proposito: 'Reproductora',
+          espacioNecesario: espacioNecesario
+        }
+      });
+      
+      if (response.data.success) {
+        // Obtener todas las jaulas con espacio suficiente
+        const jaulasResponse = await api.get('/galpones/resumen');
+        if (jaulasResponse.data.success) {
+          const jaulasConEspacio = jaulasResponse.data.data
+            .flatMap((galpon: any) => 
+              galpon.jaulas
+                .filter((jaula: any) => jaula.espacioDisponible >= espacioNecesario)
+                .map((jaula: any) => ({
+                  galpon: galpon.nombre,
+                  jaula: jaula.nombre,
+                  espacioDisponible: jaula.espacioDisponible,
+                  capacidadMaxima: jaula.capacidadMaxima,
+                  ocupacionActual: jaula.ocupacionActual,
+                  tipo: jaula.tipo
+                }))
+            );
+          
+          setAvailableJaulas(jaulasConEspacio);
+          setShowTrasladoDialog(true);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error al obtener jaulas disponibles:', error);
+      toastService.error('Error', 'No se pudieron cargar las jaulas disponibles');
+    }
+  };
+
+  const handleTrasladarMadre = async () => {
+    if (!selectedNewJaula || !camadaFormData.madreId) return;
+
+    try {
+      setFormLoading(true);
+      
+      // Trasladar la madre a la nueva jaula
+      await api.put(`/cuyes/${camadaFormData.madreId}`, {
+        galpon: selectedNewJaula.galpon,
+        jaula: selectedNewJaula.jaula
+      });
+
+      toastService.success('Éxito', `Madre trasladada a ${selectedNewJaula.galpon}-${selectedNewJaula.jaula}`);
+      
+      // Actualizar la lista de cuyes disponibles
+      await fetchAvailableCuyes();
+      
+      // Cerrar diálogos y continuar con el registro de la camada
+      setShowTrasladoDialog(false);
+      setSelectedNewJaula(null);
+      
+      // Proceder con el registro de la camada en la nueva ubicación
+      await proceedWithCamadaRegistration();
+      
+    } catch (error: any) {
+      console.error('Error al trasladar madre:', error);
+      toastService.error('Error', error.response?.data?.message || 'Error al trasladar la madre');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const proceedWithCamadaRegistration = async () => {
+    try {
+      const numVivos = Number(camadaFormData.numVivos);
+      const numMachos = Number(camadaFormData.numMachos) || 0;
+      const numHembras = Number(camadaFormData.numHembras) || 0;
+
+      const dataToSend = {
+        fechaNacimiento: camadaFormData.fechaNacimiento,
+        numVivos: numVivos,
+        numMuertos: Number(camadaFormData.numMuertos),
+        madreId: camadaFormData.madreId ? Number(camadaFormData.madreId) : null,
+        padreId: camadaFormData.padreId ? Number(camadaFormData.padreId) : null,
+        prenezId: camadaFormData.prenezId ? Number(camadaFormData.prenezId) : null,
+        numMachos: numMachos,
+        numHembras: numHembras,
+        crearCuyes: numVivos > 0
+      };
+
+      await api.post('/reproduccion/camadas', dataToSend);
+      toastService.success('Éxito', `Camada registrada correctamente${numVivos > 0 ? ` y ${numVivos} crías creadas automáticamente` : ''}`);
+      
+      handleCloseForms();
+      fetchCamadas();
+      fetchStats();
+    } catch (error: any) {
+      console.error('Error al registrar camada:', error);
+      toastService.error('Error', error.response?.data?.message || 'Error al registrar la camada');
+    }
+  };
+
+  // Efectos
+  useEffect(() => {
+    if (currentTab === 'prenez') {
+      fetchPreneces();
+    } else {
+      fetchCamadas();
+    }
+    fetchStats();
+  }, [currentTab, fetchPreneces, fetchCamadas, fetchStats]);
+
+  // Efecto para aplicar filtros desde URL o props al cargar el componente
+  useEffect(() => {
+    const galponParam = searchParams.get('galpon') || presetFilters?.galpon;
+    const jaulaParam = searchParams.get('jaula') || presetFilters?.jaula;
+
+    if (galponParam || jaulaParam) {
+      setFilters(prev => ({
+        ...prev,
+        galpon: galponParam || '',
+        jaula: jaulaParam || ''
+      }));
+
+      if (showFiltersPanel) {
+        setShowFilters(true);
+      }
+    }
+  }, [searchParams, presetFilters, showFiltersPanel]);
+
+  // Handlers
+  const handleTabChange = (event: React.SyntheticEvent, newValue: 'prenez' | 'camadas') => {
+    setCurrentTab(newValue);
+  };
+
+  const handleApplyFilters = () => {
+    if (currentTab === 'prenez') {
+      setPrenezPagination(prev => ({ ...prev, page: 1 }));
+      fetchPreneces();
+    } else {
+      setCamadaPagination(prev => ({ ...prev, page: 1 }));
+      fetchCamadas();
+    }
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      estado: '',
+      galpon: presetFilters?.galpon || '',
+      jaula: presetFilters?.jaula || '',
+      fechaDesde: '',
+      fechaHasta: ''
+    });
+    setSearchTerm('');
+    handleApplyFilters();
+  };
+
+  if (loading && preneces.length === 0 && camadas.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
+      {/* Header Section */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', md: 'center' }, 
+        gap: { xs: 2, md: 0 },
+        mb: 3 
+      }}>
+        {showTitle && (
+          <Typography 
+            variant="h4" 
+            component="h1" 
+            sx={{ 
+              fontWeight: 'bold', 
+              color: '#2e7d32',
+              textAlign: { xs: 'center', md: 'left' },
+              mb: { xs: 1, md: 0 }
+            }}
+          >
+            <PregnantWoman sx={{ mr: 1, verticalAlign: 'middle' }} />
+            {customTitle || 'Sistema de Reproducción'}
+          </Typography>
+        )}
+        
+        {/* Action Buttons */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 2 },
+          alignItems: 'stretch'
+        }}>
+          <Button
+            variant="outlined"
+            startIcon={<Analytics />}
+            onClick={() => {/* TODO: Implementar estadísticas avanzadas */}}
+            sx={{ 
+              minWidth: { xs: '100%', sm: 'auto' },
+              order: { xs: 4, sm: 1 },
+              color: '#9c27b0',
+              borderColor: '#9c27b0',
+              '&:hover': {
+                borderColor: '#7b1fa2',
+                backgroundColor: alpha('#9c27b0', 0.04)
+              }
+            }}
+          >
+            Estadísticas
+          </Button>
+          
+          {showNewPrenezButton && (
+            <Button
+              variant="contained"
+              startIcon={<PregnantWoman />}
+              onClick={() => handleOpenPrenezForm()}
+              sx={{ 
+                bgcolor: '#e91e63', 
+                '&:hover': { bgcolor: '#c2185b' },
+                minWidth: { xs: '100%', sm: 'auto' },
+                order: { xs: 1, sm: 2 }
+              }}
+            >
+              Nueva Preñez
+            </Button>
+          )}
+          
+          {showNewCamadaButton && (
+            <Button
+              variant="contained"
+              startIcon={<ChildCare />}
+              onClick={() => handleOpenCamadaForm()}
+              sx={{ 
+                bgcolor: '#ff9800', 
+                '&:hover': { bgcolor: '#f57c00' },
+                minWidth: { xs: '100%', sm: 'auto' },
+                order: { xs: 2, sm: 3 }
+              }}
+            >
+              Nueva Camada
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {/* Estadísticas */}
+      {showStats && (
+        <Paper sx={{ p: 3, mb: 3, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+          <Typography variant="h6" gutterBottom>
+            Resumen de Reproducción
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#e91e63', mx: 'auto', mb: 1 }}>
+                <PregnantWoman />
+              </Avatar>
+              <Typography variant="h4">{stats.resumen.prenecesActivas}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Preñeces Activas
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#ff9800', mx: 'auto', mb: 1 }}>
+                <ChildCare />
+              </Avatar>
+              <Typography variant="h4">{stats.resumen.totalCamadas}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total Camadas
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#4caf50', mx: 'auto', mb: 1 }}>
+                <TrendingUp />
+              </Avatar>
+              <Typography variant="h4">{stats.promedios.tasaExito}%</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Tasa de Éxito
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'center' }}>
+              <Avatar sx={{ bgcolor: '#f44336', mx: 'auto', mb: 1 }}>
+                <Warning />
+              </Avatar>
+              <Typography variant="h4">{stats.resumen.proximosPartos}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Próximos Partos
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Sistema de Alertas */}
+      {showAlertas && (
+        <AlertasReproduccion 
+          autoRefresh={true}
+          refreshInterval={300000}
+          showDetails={true}
+          maxAlertas={5}
+        />
+      )}
+
+      {/* Tabs de navegación */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs 
+          value={currentTab} 
+          onChange={handleTabChange}
+          sx={{
+            '& .MuiTabs-indicator': {
+              height: 3,
+              backgroundColor: 'primary.main'
+            }
+          }}
+        >
+          <Tab 
+            value="prenez"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PregnantWoman />
+                Preñeces ({stats.resumen.totalPreneces})
+              </Box>
+            }
+            sx={{ 
+              '&.Mui-selected': { 
+                color: '#e91e63',
+                backgroundColor: alpha('#e91e63', 0.08)
+              }
+            }}
+          />
+          <Tab 
+            value="camadas"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ChildCare />
+                Camadas ({stats.resumen.totalCamadas})
+              </Box>
+            }
+            sx={{ 
+              '&.Mui-selected': { 
+                color: '#ff9800',
+                backgroundColor: alpha('#ff9800', 0.08)
+              }
+            }}
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Search and Filter Bar */}
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
+        {/* Search Section */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2, 
+          mb: 2, 
+          alignItems: { xs: 'stretch', sm: 'center' }
+        }}>
+          <TextField
+            placeholder={`Buscar ${currentTab === 'prenez' ? 'preñeces' : 'camadas'}...`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            sx={{ 
+              flex: 1,
+              minWidth: { xs: '100%', sm: 250 },
+              maxWidth: { xs: '100%', sm: 400 }
+            }}
+            InputProps={{
+              startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleApplyFilters();
+              }
+            }}
+          />
+          
+          {/* Action Buttons */}
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 1,
+            alignItems: 'stretch'
+          }}>
+            {showSearchButton && (
+              <Button
+                variant="contained"
+                startIcon={<Search />}
+                onClick={handleApplyFilters}
+                size="small"
+                sx={{ 
+                  bgcolor: '#ff9800', 
+                  '&:hover': { bgcolor: '#f57c00' },
+                  minWidth: { xs: '100%', sm: 'auto' }
+                }}
+              >
+                Buscar
+              </Button>
+            )}
+            
+            {showFiltersButton && (
+              <Button
+                variant={showFilters ? 'contained' : 'outlined'}
+                startIcon={<FilterList />}
+                onClick={() => setShowFilters(!showFilters)}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Filtros
+              </Button>
+            )}
+            
+            {showRefreshButton && (
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={() => {
+                  if (currentTab === 'prenez') {
+                    fetchPreneces();
+                  } else {
+                    fetchCamadas();
+                  }
+                  fetchStats();
+                }}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Actualizar
+              </Button>
+            )}
+            
+            {showFiltersButton && Object.values(filters).some(f => f !== '') && (
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={clearFilters}
+                size="small"
+                sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              >
+                Limpiar Filtros
+              </Button>
+            )}
+          </Box>
+        </Box>
+
+        {/* View Toggle */}
+        {showViewToggle && (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: { xs: 'center', sm: 'flex-end' },
+            mt: { xs: 2, sm: 0 }
+          }}>
+            <Box sx={{ display: 'flex' }}>
+              <Button
+                variant={viewMode === 'cards' ? 'contained' : 'outlined'}
+                startIcon={<ViewModule />}
+                onClick={() => setViewMode('cards')}
+                size="small"
+                sx={{ 
+                  borderRadius: '8px 0 0 8px',
+                  minWidth: { xs: 120, sm: 'auto' }
+                }}
+              >
+                Tarjetas
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'contained' : 'outlined'}
+                startIcon={<TableChart />}
+                onClick={() => setViewMode('table')}
+                size="small"
+                sx={{ 
+                  borderRadius: '0 8px 8px 0', 
+                  borderLeft: 'none',
+                  minWidth: { xs: 120, sm: 'auto' }
+                }}
+              >
+                Tabla
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Panel de filtros */}
+        {showFilters && showFiltersPanel && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+            {currentTab === 'prenez' && (
+              <FormControl size="small">
+                <InputLabel>Estado</InputLabel>
+                <Select
+                  value={filters.estado}
+                  label="Estado"
+                  onChange={(e) => setFilters(prev => ({ ...prev, estado: e.target.value as string }))}
+                >
+                  <MenuItem value="">Todos</MenuItem>
+                  <MenuItem value="activa">Activa</MenuItem>
+                  <MenuItem value="completada">Completada</MenuItem>
+                  <MenuItem value="fallida">Fallida</MenuItem>
+                </Select>
+              </FormControl>
+            )}
+            
+            <FormControl size="small">
+              <InputLabel>Galpón</InputLabel>
+              <Select
+                value={filters.galpon}
+                label="Galpón"
+                onChange={(e) => setFilters(prev => ({ ...prev, galpon: e.target.value as string }))}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="A">A</MenuItem>
+                <MenuItem value="B">B</MenuItem>
+                <MenuItem value="C">C</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <TextField
+              label="Fecha Desde"
+              type="date"
+              size="small"
+              value={filters.fechaDesde}
+              onChange={(e) => setFilters(prev => ({ ...prev, fechaDesde: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+            />
+            
+            <TextField
+              label="Fecha Hasta"
+              type="date"
+              size="small"
+              value={filters.fechaHasta}
+              onChange={(e) => setFilters(prev => ({ ...prev, fechaHasta: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        )}
+      </Paper>
+
+      {/* Contenido principal */}
+      <Box sx={{ minHeight: 400 }}>
+        {currentTab === 'prenez' ? (
+          <Box>
+            {preneces.length > 0 ? (
+              viewMode === 'cards' ? (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
+                  {preneces.map((prenez) => (
+                    <Card key={prenez.id} sx={{ 
+                      height: '100%',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 4
+                      }
+                    }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold' }}>
+                            Preñez #{prenez.id}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                            <Chip 
+                              label={prenez.estadoCalculado || prenez.estado} 
+                              color={
+                                prenez.estadoCalculado === 'vencida' ? 'error' :
+                                prenez.estado === 'activa' ? 'success' :
+                                prenez.estado === 'completada' ? 'primary' : 'default'
+                              }
+                              size="small"
+                            />
+                            <Tooltip title="Editar preñez">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleOpenPrenezForm(prenez)}
+                                sx={{ color: theme.palette.primary.main }}
+                              >
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Eliminar preñez">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleDeleteClick(prenez.id, 'prenez', `Preñez #${prenez.id}`)}
+                                sx={{ color: theme.palette.error.main }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Madre: {prenez.madre?.galpon}-{prenez.madre?.jaula} ({prenez.madre?.raza})
+                        </Typography>
+
+                        {prenez.padre && (
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Padre: {prenez.padre?.galpon}-{prenez.padre?.jaula} ({prenez.padre?.raza})
+                          </Typography>
+                        )}
+
+                        {/* Información de tiempo */}
+                        <Box sx={{ mt: 2, mb: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                              Gestación
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {prenez.diasGestacion || 0} días
+                            </Typography>
+                          </Box>
+                          
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min((prenez.diasGestacion || 0) / 70 * 100, 100)}
+                            sx={{
+                              height: 8,
+                              borderRadius: 4,
+                              bgcolor: alpha(theme.palette.grey[300], 0.3),
+                              '& .MuiLinearProgress-bar': {
+                                bgcolor: prenez.estadoCalculado === 'vencida' ? '#f44336' :
+                                        (prenez.diasRestantes || 0) <= 3 ? '#ff9800' : '#e91e63'
+                              }
+                            }}
+                          />
+                          
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                            {prenez.diasRestantes !== undefined ? (
+                              prenez.diasRestantes > 0 ? 
+                                `${prenez.diasRestantes} días restantes` : 
+                                `${Math.abs(prenez.diasRestantes)} días vencida`
+                            ) : 'Calculando...'}
+                          </Typography>
+                        </Box>
+
+                        {/* Fechas importantes */}
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 2 }}>
+                          <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#e91e63', 0.1), borderRadius: 1 }}>
+                            <Typography variant="caption" color="text.secondary">Preñez</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {new Date(prenez.fechaPrenez).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                          
+                          <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#ff9800', 0.1), borderRadius: 1 }}>
+                            <Typography variant="caption" color="text.secondary">Parto Esperado</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {new Date(prenez.fechaProbableParto).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* Alertas */}
+                        {prenez.estadoCalculado === 'vencida' && (
+                          <Alert severity="error" sx={{ mb: 2, py: 0 }}>
+                            ⚠️ Preñez vencida - Revisar urgente
+                          </Alert>
+                        )}
+
+                        {(prenez.diasRestantes || 0) <= 3 && (prenez.diasRestantes || 0) > 0 && (
+                          <Alert severity="warning" sx={{ mb: 2, py: 0 }}>
+                            🕐 Parto inminente en {prenez.diasRestantes} días
+                          </Alert>
+                        )}
+
+                        {/* Notas */}
+                        {prenez.notas && (
+                          <Typography variant="body2" color="text.secondary" sx={{ 
+                            fontStyle: 'italic',
+                            mt: 1,
+                            p: 1,
+                            bgcolor: alpha(theme.palette.grey[100], 0.5),
+                            borderRadius: 1
+                          }}>
+                            "{prenez.notas}"
+                          </Typography>
+                        )}
+
+                        {/* Camada asociada */}
+                        {prenez.camada && (
+                          <Box sx={{ mt: 2, p: 1, bgcolor: alpha('#4caf50', 0.1), borderRadius: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
+                              ✅ Camada registrada
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {prenez.camada.numVivos} vivos, {prenez.camada.numMuertos} muertos
+                            </Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              ) : (
+                <Alert severity="info">Vista de tabla en desarrollo...</Alert>
+              )
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No hay preñeces registradas
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Registra la primera preñez para comenzar el seguimiento reproductivo
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<PregnantWoman />}
+                  onClick={() => {/* TODO: Implementar nueva preñez */}}
+                  sx={{ bgcolor: '#e91e63', '&:hover': { bgcolor: '#c2185b' } }}
+                >
+                  Registrar Primera Preñez
+                </Button>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box>
+            {camadas.length > 0 ? (
+              viewMode === 'cards' ? (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
+                  {camadas.map((camada) => (
+                    <Card key={camada.id} sx={{ 
+                      height: '100%',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 4
+                      }
+                    }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold' }}>
+                            Camada #{camada.id}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                            <Chip 
+                              label={`${camada.edadDias || 0} días`}
+                              color={
+                                (camada.edadDias || 0) < 30 ? 'warning' :
+                                (camada.edadDias || 0) < 60 ? 'info' : 'success'
+                              }
+                              size="small"
+                            />
+                            <Tooltip title="Editar camada">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleOpenCamadaForm(camada)}
+                                sx={{ color: theme.palette.primary.main }}
+                              >
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Eliminar camada">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleDeleteClick(camada.id, 'camada', `Camada #${camada.id}`)}
+                                sx={{ color: theme.palette.error.main }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Madre: {camada.madre?.galpon}-{camada.madre?.jaula} ({camada.madre?.raza})
+                        </Typography>
+
+                        {camada.padre && (
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Padre: {camada.padre?.galpon}-{camada.padre?.jaula} ({camada.padre?.raza})
+                          </Typography>
+                        )}
+
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Nacimiento: {new Date(camada.fechaNacimiento).toLocaleDateString()}
+                        </Typography>
+
+                        {/* Estadísticas de la camada */}
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, mt: 2, mb: 2 }}>
+                          <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#4caf50', 0.1), borderRadius: 1 }}>
+                            <Typography variant="h6" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                              {camada.numVivos}
+                            </Typography>
+                            <Typography variant="caption">Vivos</Typography>
+                          </Box>
+                          
+                          <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#f44336', 0.1), borderRadius: 1 }}>
+                            <Typography variant="h6" sx={{ color: '#f44336', fontWeight: 'bold' }}>
+                              {camada.numMuertos}
+                            </Typography>
+                            <Typography variant="caption">Muertos</Typography>
+                          </Box>
+                          
+                          <Box sx={{ textAlign: 'center', p: 1, bgcolor: alpha('#2196f3', 0.1), borderRadius: 1 }}>
+                            <Typography variant="h6" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
+                              {camada.criasActuales || 0}
+                            </Typography>
+                            <Typography variant="caption">Actuales</Typography>
+                          </Box>
+                        </Box>
+
+                        {/* Tasa de supervivencia */}
+                        <Box sx={{ mt: 2, mb: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                              Supervivencia
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
+                              {camada.tasaSupervivencia || 0}%
+                            </Typography>
+                          </Box>
+                          
+                          <LinearProgress
+                            variant="determinate"
+                            value={camada.tasaSupervivencia || 0}
+                            sx={{
+                              height: 8,
+                              borderRadius: 4,
+                              bgcolor: alpha(theme.palette.grey[300], 0.3),
+                              '& .MuiLinearProgress-bar': {
+                                bgcolor: (camada.tasaSupervivencia || 0) >= 80 ? '#4caf50' :
+                                        (camada.tasaSupervivencia || 0) >= 60 ? '#ff9800' : '#f44336'
+                              }
+                            }}
+                          />
+                        </Box>
+
+                        {/* Alertas */}
+                        {(camada.tasaSupervivencia || 0) < 60 && (
+                          <Alert severity="error" sx={{ mb: 2, py: 0 }}>
+                            ⚠️ Baja supervivencia - Revisar condiciones
+                          </Alert>
+                        )}
+
+                        {(camada.edadDias || 0) < 7 && (
+                          <Alert severity="info" sx={{ mb: 2, py: 0 }}>
+                            🍼 Camada reciente - Monitoreo intensivo
+                          </Alert>
+                        )}
+
+                        {/* Información adicional */}
+                        <Box sx={{ mt: 2, p: 1, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
+                            Total de crías: {camada.totalCrias || (camada.numVivos + camada.numMuertos)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Edad: {camada.edadDias || 0} días
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              ) : (
+                <Alert severity="info">Vista de tabla en desarrollo...</Alert>
+              )
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No hay camadas registradas
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Registra la primera camada para comenzar el seguimiento de crías
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<ChildCare />}
+                  onClick={() => {/* TODO: Implementar nueva camada */}}
+                  sx={{ bgcolor: '#ff9800', '&:hover': { bgcolor: '#f57c00' } }}
+                >
+                  Registrar Primera Camada
+                </Button>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {/* Paginación */}
+        {(currentTab === 'prenez' ? preneces.length > 0 : camadas.length > 0) && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <TablePagination
+              component="div"
+              count={currentTab === 'prenez' ? prenezPagination.total : camadaPagination.total}
+              page={currentTab === 'prenez' ? prenezPagination.page - 1 : camadaPagination.page - 1}
+              onPageChange={(event, newPage) => {
+                if (currentTab === 'prenez') {
+                  setPrenezPagination(prev => ({ ...prev, page: newPage + 1 }));
+                } else {
+                  setCamadaPagination(prev => ({ ...prev, page: newPage + 1 }));
+                }
+              }}
+              rowsPerPage={currentTab === 'prenez' ? prenezPagination.limit : camadaPagination.limit}
+              onRowsPerPageChange={(event) => {
+                const newLimit = parseInt(event.target.value, 10);
+                if (currentTab === 'prenez') {
+                  setPrenezPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
+                } else {
+                  setCamadaPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
+                }
+              }}
+              rowsPerPageOptions={[10, 20, 50, 100]}
+              labelRowsPerPage={`${currentTab === 'prenez' ? 'Preñeces' : 'Camadas'} por página:`}
+              labelDisplayedRows={({ from, to, count }) => 
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+              }
+              sx={{
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'wrap',
+                  gap: 1
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: '0.875rem'
+                }
+              }}
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* Formulario de Preñez */}
+      <Dialog 
+        open={showPrenezForm} 
+        onClose={handleCloseForms}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PregnantWoman color="primary" />
+            {editingPrenez ? 'Editar Preñez' : 'Nueva Preñez'}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mt: 2 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Madre</InputLabel>
+              <Select
+                value={prenezFormData.madreId}
+                label="Madre"
+                onChange={(e) => setPrenezFormData(prev => ({ ...prev, madreId: e.target.value as number }))}
+              >
+                {availableCuyes
+                  .filter(cuy => cuy.sexo === 'H' && ['Reproductora', 'Adulta', 'Adulto'].includes(cuy.etapaVida))
+                  .map(cuy => (
+                    <MenuItem key={cuy.id} value={cuy.id}>
+                      {cuy.galpon}-{cuy.jaula} - {cuy.raza} ({cuy.etapaVida})
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Padre (Opcional)</InputLabel>
+              <Select
+                value={prenezFormData.padreId}
+                label="Padre (Opcional)"
+                onChange={(e) => setPrenezFormData(prev => ({ ...prev, padreId: e.target.value as number }))}
+              >
+                <MenuItem value="">Sin padre específico</MenuItem>
+                {availableCuyes
+                  .filter(cuy => cuy.sexo === 'M' && ['Reproductor', 'Adulto', 'Adulta', 'Engorde'].includes(cuy.etapaVida))
+                  .map(cuy => (
+                    <MenuItem key={cuy.id} value={cuy.id}>
+                      {cuy.galpon}-{cuy.jaula} - {cuy.raza} ({cuy.etapaVida})
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="Fecha de Preñez"
+              type="date"
+              value={prenezFormData.fechaPrenez}
+              onChange={(e) => setPrenezFormData(prev => ({ ...prev, fechaPrenez: e.target.value }))}
+              fullWidth
+              required
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Info color="info" />
+              <Typography variant="body2" color="text.secondary">
+                Parto esperado: {prenezFormData.fechaPrenez ? 
+                  new Date(new Date(prenezFormData.fechaPrenez).getTime() + 70 * 24 * 60 * 60 * 1000)
+                    .toLocaleDateString() : 'Seleccione fecha'}
+              </Typography>
+            </Box>
+
+            <TextField
+              label="Notas (Opcional)"
+              value={prenezFormData.notas}
+              onChange={(e) => setPrenezFormData(prev => ({ ...prev, notas: e.target.value }))}
+              fullWidth
+              multiline
+              rows={3}
+              sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseForms}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSubmitPrenez}
+            variant="contained"
+            disabled={formLoading}
+            startIcon={formLoading ? <CircularProgress size={20} /> : <PregnantWoman />}
+            sx={{ bgcolor: '#e91e63', '&:hover': { bgcolor: '#c2185b' } }}
+          >
+            {editingPrenez ? 'Actualizar' : 'Registrar'} Preñez
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Formulario de Camada */}
+      <Dialog 
+        open={showCamadaForm} 
+        onClose={handleCloseForms}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ChildCare color="primary" />
+            {editingCamada ? 'Editar Camada' : 'Nueva Camada'}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mt: 2 }}>
+            <TextField
+              label="Fecha de Nacimiento"
+              type="date"
+              value={camadaFormData.fechaNacimiento}
+              onChange={(e) => setCamadaFormData(prev => ({ ...prev, fechaNacimiento: e.target.value }))}
+              fullWidth
+              required
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <TextField
+              label="Número de Crías Vivas"
+              type="number"
+              value={camadaFormData.numVivos}
+              onChange={(e) => {
+                const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                setCamadaFormData(prev => ({ ...prev, numVivos: value }));
+              }}
+              fullWidth
+              required
+              inputProps={{ min: 0 }}
+            />
+
+            <TextField
+              label="Número de Crías Muertas"
+              type="number"
+              value={camadaFormData.numMuertos}
+              onChange={(e) => {
+                const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                setCamadaFormData(prev => ({ ...prev, numMuertos: value }));
+              }}
+              fullWidth
+              required
+              inputProps={{ min: 0 }}
+            />
+
+            {/* Distribución de sexos para crías vivas */}
+            {Number(camadaFormData.numVivos) > 0 && (
+              <>
+                <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' }, mt: 2, mb: 1 }}>
+                  <Typography variant="h6" sx={{ color: '#ff9800', fontWeight: 'bold', mb: 1 }}>
+                    📊 Distribución de Sexos (Crías Vivas)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Especifica cuántos machos y hembras hay entre las {camadaFormData.numVivos} crías vivas
+                  </Typography>
+                </Box>
+
+                <TextField
+                  label="Número de Machos"
+                  type="number"
+                  value={camadaFormData.numMachos}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                    setCamadaFormData(prev => ({ ...prev, numMachos: value }));
+                  }}
+                  fullWidth
+                  required={Number(camadaFormData.numVivos) > 0}
+                  inputProps={{ min: 0, max: Number(camadaFormData.numVivos) || 0 }}
+                  helperText="Número de crías machos vivas"
+                />
+
+                <TextField
+                  label="Número de Hembras"
+                  type="number"
+                  value={camadaFormData.numHembras}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                    setCamadaFormData(prev => ({ ...prev, numHembras: value }));
+                  }}
+                  fullWidth
+                  required={Number(camadaFormData.numVivos) > 0}
+                  inputProps={{ min: 0, max: Number(camadaFormData.numVivos) || 0 }}
+                  helperText="Número de crías hembras vivas"
+                />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Info color={
+                    (Number(camadaFormData.numMachos) || 0) + (Number(camadaFormData.numHembras) || 0) === Number(camadaFormData.numVivos) 
+                      ? 'success' : 'warning'
+                  } />
+                  <Typography variant="body2" color={
+                    (Number(camadaFormData.numMachos) || 0) + (Number(camadaFormData.numHembras) || 0) === Number(camadaFormData.numVivos) 
+                      ? 'success.main' : 'warning.main'
+                  }>
+                    Distribución: {Number(camadaFormData.numMachos) || 0} machos + {Number(camadaFormData.numHembras) || 0} hembras = {(Number(camadaFormData.numMachos) || 0) + (Number(camadaFormData.numHembras) || 0)} 
+                    {(Number(camadaFormData.numMachos) || 0) + (Number(camadaFormData.numHembras) || 0) === Number(camadaFormData.numVivos) 
+                      ? ' ✅' : ` (debe ser ${camadaFormData.numVivos})`}
+                  </Typography>
+                </Box>
+              </>
+            )}
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Info color="info" />
+              <Typography variant="body2" color="text.secondary">
+                Total crías: {(Number(camadaFormData.numVivos) || 0) + (Number(camadaFormData.numMuertos) || 0)}
+                {Number(camadaFormData.numVivos) > 0 && (
+                  <> • Se crearán {Number(camadaFormData.numVivos)} cuyes automáticamente</>
+                )}
+              </Typography>
+            </Box>
+
+            <FormControl fullWidth>
+              <InputLabel>Madre (Opcional)</InputLabel>
+              <Select
+                value={camadaFormData.madreId}
+                label="Madre (Opcional)"
+                onChange={(e) => setCamadaFormData(prev => ({ ...prev, madreId: e.target.value as number }))}
+              >
+                <MenuItem value="">Sin madre específica</MenuItem>
+                {availableCuyes
+                  .filter(cuy => cuy.sexo === 'H' && ['Reproductora', 'Adulta', 'Adulto'].includes(cuy.etapaVida))
+                  .map(cuy => (
+                    <MenuItem key={cuy.id} value={cuy.id}>
+                      {cuy.galpon}-{cuy.jaula} - {cuy.raza} ({cuy.etapaVida})
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Padre (Opcional)</InputLabel>
+              <Select
+                value={camadaFormData.padreId}
+                label="Padre (Opcional)"
+                onChange={(e) => setCamadaFormData(prev => ({ ...prev, padreId: e.target.value as number }))}
+              >
+                <MenuItem value="">Sin padre específico</MenuItem>
+                {availableCuyes
+                  .filter(cuy => cuy.sexo === 'M' && ['Reproductor', 'Adulto', 'Adulta', 'Engorde'].includes(cuy.etapaVida))
+                  .map(cuy => (
+                    <MenuItem key={cuy.id} value={cuy.id}>
+                      {cuy.galpon}-{cuy.jaula} - {cuy.raza} ({cuy.etapaVida})
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Preñez Asociada (Opcional)</InputLabel>
+              <Select
+                value={camadaFormData.prenezId}
+                label="Preñez Asociada (Opcional)"
+                onChange={(e) => setCamadaFormData(prev => ({ ...prev, prenezId: e.target.value as number }))}
+              >
+                <MenuItem value="">Sin preñez asociada</MenuItem>
+                {availablePreneces.map(prenez => (
+                  <MenuItem key={prenez.id} value={prenez.id}>
+                    Preñez #{prenez.id} - {prenez.madre?.galpon}-{prenez.madre?.jaula}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Info color="info" />
+              <Typography variant="body2" color="text.secondary">
+                Tasa supervivencia: {
+                  (Number(camadaFormData.numVivos) || 0) + (Number(camadaFormData.numMuertos) || 0) > 0 ?
+                  Math.round(((Number(camadaFormData.numVivos) || 0) / 
+                    ((Number(camadaFormData.numVivos) || 0) + (Number(camadaFormData.numMuertos) || 0))) * 100) + '%' :
+                  '0%'
+                }
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseForms}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSubmitCamada}
+            variant="contained"
+            disabled={formLoading}
+            startIcon={formLoading ? <CircularProgress size={20} /> : <ChildCare />}
+            sx={{ bgcolor: '#ff9800', '&:hover': { bgcolor: '#f57c00' } }}
+          >
+            {editingCamada ? 'Actualizar' : 'Registrar'} Camada
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo de confirmación de eliminación */}
+      <ConfirmDeleteDialog
+        open={showDeleteDialog}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDelete}
+        itemName={itemToDelete?.name || ''}
+        itemType={itemToDelete?.type === 'prenez' ? 'preñez' : 'camada'}
+      />
+
+      {/* Diálogo de advertencia de capacidad de jaula */}
+      <Dialog 
+        open={showCapacityDialog} 
+        onClose={() => setShowCapacityDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Warning color="warning" />
+            ⚠️ Advertencia: Capacidad de Jaula Insuficiente
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {jaulaCapacityInfo && (
+            <Box sx={{ mt: 2 }}>
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  No hay suficiente espacio en la jaula para las crías
+                </Typography>
+                <Typography variant="body2">
+                  La jaula seleccionada no tiene capacidad suficiente para alojar a la madre y las {Number(camadaFormData.numVivos)} crías.
+                </Typography>
+              </Alert>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 3 }}>
+                <Paper sx={{ p: 2, bgcolor: alpha('#ff9800', 0.1) }}>
+                  <Typography variant="h6" sx={{ color: '#ff9800', mb: 1 }}>
+                    📊 Estado Actual de la Jaula
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="body2">
+                      <strong>Capacidad máxima:</strong> {jaulaCapacityInfo.capacidadMaxima} cuyes
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Ocupación actual:</strong> {jaulaCapacityInfo.ocupacionActual} cuyes
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: jaulaCapacityInfo.espacioDisponible > 0 ? 'success.main' : 'error.main' }}>
+                      <strong>Espacio disponible:</strong> {jaulaCapacityInfo.espacioDisponible} cuyes
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'error.main' }}>
+                      <strong>Espacio necesario:</strong> {Number(camadaFormData.numVivos) + 1} cuyes (madre + crías)
+                    </Typography>
+                  </Box>
+                </Paper>
+
+                <Paper sx={{ p: 2, bgcolor: alpha('#2196f3', 0.1) }}>
+                  <Typography variant="h6" sx={{ color: '#2196f3', mb: 1 }}>
+                    🏠 Cuyes en la Jaula
+                  </Typography>
+                  <Box sx={{ maxHeight: 150, overflowY: 'auto' }}>
+                    {jaulaCapacityInfo.cuyesEnJaula.length > 0 ? (
+                      jaulaCapacityInfo.cuyesEnJaula.map((cuy: unknown, index: number) => (
+                        <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                          • {cuy.sexo} {cuy.raza} - {cuy.etapaVida}
+                        </Typography>
+                      ))
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No hay información detallada de los cuyes
+                      </Typography>
+                    )}
+                  </Box>
+                </Paper>
+              </Box>
+
+              <Typography variant="h6" sx={{ mb: 2, color: '#4caf50' }}>
+                🔧 Opciones de Solución:
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<LocationOn />}
+                  onClick={handleOpenTraslado}
+                  sx={{ 
+                    bgcolor: '#4caf50', 
+                    '&:hover': { bgcolor: '#388e3c' },
+                    justifyContent: 'flex-start'
+                  }}
+                >
+                  Trasladar madre a jaula con más espacio
+                </Button>
+
+                <Button
+                  variant="contained"
+                  startIcon={<Groups />}
+                  onClick={handleOpenJaulaManagement}
+                  sx={{ 
+                    bgcolor: '#2196f3', 
+                    '&:hover': { bgcolor: '#1976d2' },
+                    justifyContent: 'flex-start'
+                  }}
+                >
+                  Ver y gestionar cuyes en la jaula actual
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  startIcon={<Warning />}
+                  onClick={async () => {
+                    // Continuar de todos modos con advertencia
+                    setShowCapacityDialog(false);
+                    
+                    // Continuar con el registro de la camada
+                    const dataToSend = {
+                      fechaNacimiento: camadaFormData.fechaNacimiento,
+                      numVivos: Number(camadaFormData.numVivos),
+                      numMuertos: Number(camadaFormData.numMuertos),
+                      madreId: camadaFormData.madreId ? Number(camadaFormData.madreId) : null,
+                      padreId: camadaFormData.padreId ? Number(camadaFormData.padreId) : null,
+                      prenezId: camadaFormData.prenezId ? Number(camadaFormData.prenezId) : null,
+                      numMachos: Number(camadaFormData.numMachos) || 0,
+                      numHembras: Number(camadaFormData.numHembras) || 0,
+                      crearCuyes: Number(camadaFormData.numVivos) > 0
+                    };
+
+                    try {
+                      setFormLoading(true);
+                      await api.post('/reproduccion/camadas', dataToSend);
+                      toastService.success('Éxito', `Camada registrada correctamente con ${Number(camadaFormData.numVivos)} crías (⚠️ Jaula sobrepoblada)`);
+                      handleCloseForms();
+                      fetchCamadas();
+                      fetchStats();
+                    } catch (error: unknown) {
+                      toastService.error('Error', error.response?.data?.message || 'Error al guardar la camada');
+                    } finally {
+                      setFormLoading(false);
+                    }
+                  }}
+                  color="warning"
+                  sx={{ justifyContent: 'flex-start' }}
+                >
+                  Continuar de todos modos (no recomendado)
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCapacityDialog(false)}>
+            Cancelar Registro
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo de gestión de cuyes en jaula */}
+      <Dialog 
+        open={showJaulaManagementDialog} 
+        onClose={() => setShowJaulaManagementDialog(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Groups color="primary" />
+            👥 Gestión de Cuyes en la Jaula
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {jaulaCapacityInfo && (
+            <Box sx={{ mt: 2 }}>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  Cuyes actuales en la jaula
+                </Typography>
+                <Typography variant="body2">
+                  Ocupación: {jaulaCapacityInfo.ocupacionActual}/{jaulaCapacityInfo.capacidadMaxima} cuyes
+                </Typography>
+              </Alert>
+
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, color: '#2196f3' }}>
+                  📋 Lista de Cuyes en la Jaula:
+                </Typography>
+                
+                {jaulaCapacityInfo.cuyesEnJaula.length > 0 ? (
+                  <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                    <Table stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>ID</TableCell>
+                          <TableCell>Sexo</TableCell>
+                          <TableCell>Raza</TableCell>
+                          <TableCell>Etapa</TableCell>
+                          <TableCell>Propósito</TableCell>
+                          <TableCell>Peso (kg)</TableCell>
+                          <TableCell>Acciones</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {jaulaCapacityInfo.cuyesEnJaula.map((cuy: unknown) => (
+                          <TableRow key={cuy.id}>
+                            <TableCell>{cuy.id}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={cuy.sexo} 
+                                color={cuy.sexo === 'M' ? 'primary' : 'secondary'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{cuy.raza}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={cuy.etapaVida} 
+                                color={
+                                  cuy.etapaVida === 'Reproductora' ? 'success' :
+                                  cuy.etapaVida === 'Engorde' ? 'warning' : 'default'
+                                }
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{cuy.proposito}</TableCell>
+                            <TableCell>{cuy.peso?.toFixed(2) || 'N/A'}</TableCell>
+                            <TableCell>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<LocationOn />}
+                                onClick={() => {
+                                  toastService.info('Funcionalidad', `Traslado de cuy #${cuy.id} - En desarrollo`);
+                                }}
+                              >
+                                Trasladar
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Paper sx={{ p: 3, textAlign: 'center', bgcolor: alpha('#f5f5f5', 0.5) }}>
+                    <Typography variant="body1" color="text.secondary">
+                      No se encontraron cuyes en esta jaula
+                    </Typography>
+                  </Paper>
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<Groups />}
+                  onClick={() => {
+                    toastService.info('Funcionalidad', 'Traslado masivo - En desarrollo');
+                  }}
+                  sx={{ bgcolor: '#ff9800', '&:hover': { bgcolor: '#f57c00' } }}
+                >
+                  Trasladar Múltiples Cuyes
+                </Button>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<Analytics />}
+                  onClick={() => {
+                    toastService.info('Funcionalidad', 'Análisis de jaula - En desarrollo');
+                  }}
+                >
+                  Analizar Jaula
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowJaulaManagementDialog(false)}>
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo de traslado de madre */}
+      <Dialog 
+        open={showTrasladoDialog} 
+        onClose={() => setShowTrasladoDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocationOn color="primary" />
+            🏠 Trasladar Madre a Nueva Jaula
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Selecciona una jaula con espacio suficiente
+              </Typography>
+              <Typography variant="body2">
+                Se necesita espacio para la madre + {Number(camadaFormData.numVivos)} crías = {Number(camadaFormData.numVivos) + 1} cuyes
+              </Typography>
+            </Alert>
+
+            <Typography variant="h6" sx={{ mb: 2, color: '#4caf50' }}>
+              🏠 Jaulas Disponibles:
+            </Typography>
+
+            {availableJaulas.length > 0 ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                {availableJaulas.map((jaula, index) => (
+                  <Card 
+                    key={index}
+                    sx={{ 
+                      cursor: 'pointer',
+                      border: selectedNewJaula?.galpon === jaula.galpon && selectedNewJaula?.jaula === jaula.jaula 
+                        ? '2px solid #4caf50' : '1px solid #e0e0e0',
+                      '&:hover': {
+                        boxShadow: 2,
+                        borderColor: '#4caf50'
+                      }
+                    }}
+                    onClick={() => setSelectedNewJaula({ galpon: jaula.galpon, jaula: jaula.jaula })}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          {jaula.galpon}-{jaula.jaula}
+                        </Typography>
+                        <Chip 
+                          label={jaula.tipo} 
+                          color="primary" 
+                          size="small"
+                        />
+                      </Box>
+                      
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Capacidad: {jaula.ocupacionActual}/{jaula.capacidadMaxima}
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(jaula.ocupacionActual / jaula.capacidadMaxima) * 100}
+                          sx={{
+                            height: 8,
+                            borderRadius: 4,
+                            mt: 1,
+                            bgcolor: alpha('#e0e0e0', 0.3),
+                            '& .MuiLinearProgress-bar': {
+                              bgcolor: jaula.ocupacionActual / jaula.capacidadMaxima > 0.8 ? '#ff9800' : '#4caf50'
+                            }
+                          }}
+                        />
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
+                          Espacio disponible: {jaula.espacioDisponible}
+                        </Typography>
+                        {selectedNewJaula?.galpon === jaula.galpon && selectedNewJaula?.jaula === jaula.jaula && (
+                          <CheckCircle color="success" />
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            ) : (
+              <Paper sx={{ p: 3, textAlign: 'center', bgcolor: alpha('#f44336', 0.1) }}>
+                <Typography variant="body1" color="error">
+                  No hay jaulas disponibles con espacio suficiente
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Considera liberar espacio en jaulas existentes o crear nuevas jaulas
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowTrasladoDialog(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleTrasladarMadre}
+            variant="contained"
+            disabled={!selectedNewJaula || formLoading}
+            startIcon={formLoading ? <CircularProgress size={20} /> : <LocationOn />}
+            sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#388e3c' } }}
+          >
+            {formLoading ? 'Trasladando...' : 'Trasladar y Registrar Camada'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default ReproduccionManagerFixed;

@@ -397,3 +397,35 @@ export const sugerirUbicacionCuy = async (req: Request, res: Response, next: Nex
     next(error);
   }
 };
+
+// Verificar capacidad de jaula específica
+export const checkJaulaCapacity = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { galpon, jaula } = req.params;
+    
+    if (!galpon || !jaula) {
+      return res.status(400).json({
+        success: false,
+        message: 'Galpón y jaula son requeridos'
+      });
+    }
+
+    const capacityInfo = await galponesService.getJaulaCapacityInfo(galpon, jaula);
+    
+    if (!capacityInfo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Jaula no encontrada'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: capacityInfo,
+      message: 'Información de capacidad obtenida exitosamente'
+    });
+  } catch (error) {
+    console.error('Error en checkJaulaCapacity:', error);
+    next(error);
+  }
+};

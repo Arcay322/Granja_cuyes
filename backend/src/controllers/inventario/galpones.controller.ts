@@ -106,6 +106,25 @@ export const updateGalpon = async (req: Request, res: Response, next: NextFuncti
       });
     }
 
+    // Log the request body for debugging
+    console.log('Datos recibidos para actualizar galpón:', req.body);
+    console.log('ID de galpón a actualizar:', id);
+
+    // Validate required fields
+    if (!req.body.nombre || req.body.nombre.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'El nombre del galpón es requerido'
+      });
+    }
+
+    if (req.body.capacidadMaxima !== undefined && req.body.capacidadMaxima <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'La capacidad máxima debe ser mayor a 0'
+      });
+    }
+
     const galpon = await galponesService.updateGalpon(id, req.body);
     if (!galpon) {
       return res.status(404).json({
@@ -272,6 +291,25 @@ export const updateJaula = async (req: Request, res: Response, next: NextFunctio
       });
     }
 
+    // Log the request body for debugging
+    console.log('Datos recibidos para actualizar jaula:', req.body);
+    console.log('ID de jaula a actualizar:', id);
+
+    // Validate required fields
+    if (!req.body.nombre || req.body.nombre.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'El nombre de la jaula es requerido'
+      });
+    }
+
+    if (!req.body.galponId || req.body.galponId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'El ID del galpón es requerido y debe ser válido'
+      });
+    }
+
     const jaula = await galponesService.updateJaula(id, req.body);
     if (!jaula) {
       return res.status(404).json({
@@ -292,6 +330,13 @@ export const updateJaula = async (req: Request, res: Response, next: NextFunctio
         success: false,
         message: 'Ya existe una jaula con ese nombre en el galpón',
         error: 'Nombre duplicado'
+      });
+    }
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2003') {
+      return res.status(400).json({
+        success: false,
+        message: 'El galpón especificado no existe',
+        error: 'Galpón no encontrado'
       });
     }
     next(error);
@@ -426,6 +471,128 @@ export const checkJaulaCapacity = async (req: Request, res: Response, next: Next
     });
   } catch (error) {
     console.error('Error en checkJaulaCapacity:', error);
+    next(error);
+  }
+};
+
+// ===== CONTROLADORES PARA ELIMINACIÓN CON RELACIONES =====
+
+export const verificarRelacionesGalpon = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de galpón inválido'
+      });
+    }
+
+    const verificacion = await galponesService.verificarRelacionesGalpon(id);
+    
+    if (!verificacion) {
+      return res.status(404).json({
+        success: false,
+        message: 'Galpón no encontrado'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: verificacion,
+      message: 'Verificación de relaciones completada'
+    });
+  } catch (error) {
+    console.error('Error en verificarRelacionesGalpon:', error);
+    next(error);
+  }
+};
+
+export const eliminarGalponConRelaciones = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de galpón inválido'
+      });
+    }
+
+    const resultado = await galponesService.eliminarGalponConRelaciones(id);
+    
+    if (!resultado) {
+      return res.status(404).json({
+        success: false,
+        message: 'Galpón no encontrado'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: resultado,
+      message: 'Galpón eliminado exitosamente junto con sus relaciones'
+    });
+  } catch (error) {
+    console.error('Error en eliminarGalponConRelaciones:', error);
+    next(error);
+  }
+};
+
+export const verificarRelacionesJaula = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de jaula inválido'
+      });
+    }
+
+    const verificacion = await galponesService.verificarRelacionesJaula(id);
+    
+    if (!verificacion) {
+      return res.status(404).json({
+        success: false,
+        message: 'Jaula no encontrada'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: verificacion,
+      message: 'Verificación de relaciones completada'
+    });
+  } catch (error) {
+    console.error('Error en verificarRelacionesJaula:', error);
+    next(error);
+  }
+};
+
+export const eliminarJaulaConRelaciones = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de jaula inválido'
+      });
+    }
+
+    const resultado = await galponesService.eliminarJaulaConRelaciones(id);
+    
+    if (!resultado) {
+      return res.status(404).json({
+        success: false,
+        message: 'Jaula no encontrada'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: resultado,
+      message: 'Jaula eliminada exitosamente junto con sus relaciones'
+    });
+  } catch (error) {
+    console.error('Error en eliminarJaulaConRelaciones:', error);
     next(error);
   }
 };

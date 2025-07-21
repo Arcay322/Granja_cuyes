@@ -30,4 +30,10 @@ router.post('/jaulas', authenticateToken, validateRequest(createJaulaSchema), ga
 router.put('/jaulas/:id', authenticateToken, validateRequestWithParams(updateJaulaSchema), galponesController.updateJaula);
 router.delete('/jaulas/:id', authenticateToken, galponesController.deleteJaula);
 
+// ===== RUTAS PARA ELIMINACIÓN CON RELACIONES =====
+router.get('/:id/verificar-relaciones', authenticateToken, galponesController.verificarRelacionesGalpon);
+router.delete('/:id/eliminar-con-relaciones', authenticateToken, galponesController.eliminarGalponConRelaciones);
+router.get('/jaulas/:id/verificar-relaciones', authenticateToken, galponesController.verificarRelacionesJaula);
+router.delete('/jaulas/:id/eliminar-con-relaciones', authenticateToken, galponesController.eliminarJaulaConRelaciones);
+
 export default router;

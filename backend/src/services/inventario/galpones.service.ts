@@ -20,8 +20,6 @@ export interface JaulaInput {
   estado?: string;
 }
 
-// ===== SERVICIOS PARA GALPONES =====
-
 export const getAllGalpones = async (): Promise<Galpon[]> => {
   return prisma.galpon.findMany({
     include: {
@@ -178,8 +176,8 @@ export const getJaulasByGalpon = async (galponNombre: string) => {
       });
 
       // Calcular porcentaje de ocupación
-      const porcentajeOcupacion = jaula.capacidadMaxima > 0 
-        ? (totalCuyes / jaula.capacidadMaxima) * 100 
+      const porcentajeOcupacion = jaula.capacidadMaxima > 0
+        ? (totalCuyes / jaula.capacidadMaxima) * 100
         : 0;
 
       // Determinar estado de la jaula
@@ -253,7 +251,7 @@ export const deleteJaula = async (id: number): Promise<boolean> => {
     }
 
     const cuyesEnJaula = await prisma.cuy.findMany({
-      where: { 
+      where: {
         galpon: jaula.galponNombre,
         jaula: jaula.nombre
       }
@@ -291,7 +289,7 @@ export const getEstadisticasGalpon = async (galponNombre: string) => {
   const estadisticasPorJaula = await Promise.all(
     jaulas.map(async (jaula) => {
       const cuyesJaula = cuyes.filter(cuy => cuy.jaula === jaula.nombre);
-      
+
       const estadisticas = {
         jaula: jaula.nombre,
         capacidadMaxima: jaula.capacidadMaxima,
@@ -307,8 +305,8 @@ export const getEstadisticasGalpon = async (galponNombre: string) => {
           enfermos: cuyesJaula.filter(cuy => cuy.estado === 'Enfermo').length
         },
         razas: [...new Set(cuyesJaula.map(cuy => cuy.raza))],
-        pesoPromedio: cuyesJaula.length > 0 
-          ? cuyesJaula.reduce((sum, cuy) => sum + cuy.peso, 0) / cuyesJaula.length 
+        pesoPromedio: cuyesJaula.length > 0
+          ? cuyesJaula.reduce((sum, cuy) => sum + cuy.peso, 0) / cuyesJaula.length
           : 0,
         tipo: jaula.tipo,
         estado: jaula.estado
@@ -330,8 +328,8 @@ export const getEstadisticasGalpon = async (galponNombre: string) => {
     capacidadMaxima: galpon?.capacidadMaxima || 0,
     totalJaulas: jaulas.length,
     totalCuyes: cuyes.length,
-    porcentajeOcupacion: galpon?.capacidadMaxima 
-      ? (cuyes.length / galpon.capacidadMaxima) * 100 
+    porcentajeOcupacion: galpon?.capacidadMaxima
+      ? (cuyes.length / galpon.capacidadMaxima) * 100
       : 0,
     cuyesPorSexo: {
       machos: cuyes.filter(cuy => cuy.sexo === 'Macho').length,
@@ -343,8 +341,8 @@ export const getEstadisticasGalpon = async (galponNombre: string) => {
       enfermos: cuyes.filter(cuy => cuy.estado === 'Enfermo').length
     },
     razasPresentes: [...new Set(cuyes.map(cuy => cuy.raza))],
-    pesoPromedio: cuyes.length > 0 
-      ? cuyes.reduce((sum, cuy) => sum + cuy.peso, 0) / cuyes.length 
+    pesoPromedio: cuyes.length > 0
+      ? cuyes.reduce((sum, cuy) => sum + cuy.peso, 0) / cuyes.length
       : 0,
     jaulasConSobrepoblacion: estadisticasPorJaula.filter(j => j.porcentajeOcupacion > 100).length,
     jaulasVacias: estadisticasPorJaula.filter(j => j.ocupacionActual === 0).length
@@ -401,10 +399,10 @@ const getGalponNombreById = async (id: number): Promise<string> => {
 // Función para sugerir ubicación automática
 export const sugerirUbicacionCuy = async (sexo: string, proposito: string) => {
   const galpones = await getResumenTodosGalpones();
-  
+
   // Filtrar galpones activos con espacio disponible
-  const galponesDisponibles = galpones.filter(g => 
-    g.estado === 'Activo' && 
+  const galponesDisponibles = galpones.filter(g =>
+    g.estado === 'Activo' &&
     g.porcentajeOcupacion < 90 && // Dejar 10% de margen
     !g.alertas.sobrepoblacion
   );
@@ -417,7 +415,7 @@ export const sugerirUbicacionCuy = async (sexo: string, proposito: string) => {
   galponesDisponibles.sort((a, b) => a.porcentajeOcupacion - b.porcentajeOcupacion);
 
   const galponSugerido = galponesDisponibles[0];
-  
+
   // Buscar jaula disponible en el galpón sugerido
   const jaulasGalpon = await getJaulasByGalpon(galponSugerido.nombre);
   const jaulasDisponibles = [];
@@ -514,6 +512,261 @@ export const getJaulaCapacityInfo = async (galponNombre: string, jaulaNombre: st
     };
   } catch (error) {
     console.error('Error en getJaulaCapacityInfo:', error);
+    throw error;
+  }
+};
+
+// ===== SERVICIOS PARA ELIMINACIÓN CON RELACIONES =====
+
+export const verificarRelacionesGalpon = async (id: number) => {
+  try {
+    // Buscar el galpón
+    const galpon = await prisma.galpon.findUnique({
+      where: { id },
+      include: {
+        jaulas: true
+      }
+    });
+
+    if (!galpon) {
+      return null;
+    }
+
+    // Buscar cuyes en el galpón
+    const cuyes = await prisma.cuy.findMany({
+      where: { galpon: galpon.nombre },
+      select: {
+        id: true,
+        raza: true,
+        sexo: true,
+        jaula: true,
+        etapaVida: true,
+        proposito: true,
+        estado: true
+      }
+    });
+
+    const relacionesEncontradas = [];
+    const advertencias = [];
+
+    // Verificar jaulas
+    if (galpon.jaulas.length > 0) {
+      relacionesEncontradas.push({
+        tipo: 'jaulas',
+        descripcion: `${galpon.jaulas.length} jaula${galpon.jaulas.length !== 1 ? 's' : ''} en este galpón`,
+        cantidad: galpon.jaulas.length,
+        detalles: galpon.jaulas.map(jaula => 
+          `Jaula ${jaula.nombre} (${jaula.tipo}, Capacidad: ${jaula.capacidadMaxima})`
+        )
+      });
+    }
+
+    // Verificar cuyes
+    if (cuyes.length > 0) {
+      const cuyesActivos = cuyes.filter(c => c.estado === 'Activo');
+      const cuyesEnfermos = cuyes.filter(c => c.estado === 'Enfermo');
+      
+      relacionesEncontradas.push({
+        tipo: 'cuyes',
+        descripcion: `${cuyes.length} cuy${cuyes.length !== 1 ? 'es' : ''} en este galpón`,
+        cantidad: cuyes.length,
+        detalles: cuyes.map(cuy => 
+          `Cuy ID ${cuy.id} - ${cuy.raza} ${cuy.sexo} (${cuy.jaula}) - ${cuy.estado}`
+        )
+      });
+
+      if (cuyesEnfermos.length > 0) {
+        advertencias.push(`⚠️ Hay ${cuyesEnfermos.length} cuyes enfermos que serán eliminados`);
+      }
+
+      if (cuyesActivos.length > 0) {
+        advertencias.push(`📋 Se eliminarán ${cuyesActivos.length} cuyes activos`);
+      }
+    }
+
+    return {
+      galpon: {
+        id: galpon.id,
+        nombre: galpon.nombre,
+        descripcion: galpon.descripcion,
+        ubicacion: galpon.ubicacion,
+        capacidadMaxima: galpon.capacidadMaxima
+      },
+      relacionesEncontradas,
+      puedeEliminar: true, // Siempre permitir eliminación con advertencia
+      advertencias
+    };
+  } catch (error) {
+    console.error('Error en verificarRelacionesGalpon:', error);
+    throw error;
+  }
+};
+
+export const eliminarGalponConRelaciones = async (id: number) => {
+  try {
+    // Verificar que el galpón existe
+    const galpon = await prisma.galpon.findUnique({
+      where: { id },
+      include: {
+        jaulas: true
+      }
+    });
+
+    if (!galpon) {
+      return null;
+    }
+
+    const eliminados = {
+      cuyes: 0,
+      jaulas: 0,
+      galpon: 1
+    };
+
+    // Usar transacción para asegurar consistencia
+    await prisma.$transaction(async (tx) => {
+      // 1. Eliminar cuyes del galpón
+      const cuyesEliminados = await tx.cuy.deleteMany({
+        where: { galpon: galpon.nombre }
+      });
+      eliminados.cuyes = cuyesEliminados.count;
+
+      // 2. Eliminar jaulas del galpón
+      const jaulasEliminadas = await tx.jaula.deleteMany({
+        where: { galponId: id }
+      });
+      eliminados.jaulas = jaulasEliminadas.count;
+
+      // 3. Eliminar el galpón
+      await tx.galpon.delete({
+        where: { id }
+      });
+    });
+
+    return {
+      eliminados,
+      mensaje: `Galpón "${galpon.nombre}" eliminado junto con ${eliminados.jaulas} jaulas y ${eliminados.cuyes} cuyes`
+    };
+  } catch (error) {
+    console.error('Error en eliminarGalponConRelaciones:', error);
+    throw error;
+  }
+};
+
+export const verificarRelacionesJaula = async (id: number) => {
+  try {
+    // Buscar la jaula
+    const jaula = await prisma.jaula.findUnique({
+      where: { id },
+      include: {
+        galpon: true
+      }
+    });
+
+    if (!jaula) {
+      return null;
+    }
+
+    // Buscar cuyes en la jaula
+    const cuyes = await prisma.cuy.findMany({
+      where: { 
+        galpon: jaula.galponNombre,
+        jaula: jaula.nombre
+      },
+      select: {
+        id: true,
+        raza: true,
+        sexo: true,
+        etapaVida: true,
+        proposito: true,
+        estado: true,
+        peso: true
+      }
+    });
+
+    const relacionesEncontradas = [];
+    const advertencias = [];
+
+    // Verificar cuyes
+    if (cuyes.length > 0) {
+      const cuyesActivos = cuyes.filter(c => c.estado === 'Activo');
+      const cuyesEnfermos = cuyes.filter(c => c.estado === 'Enfermo');
+      
+      relacionesEncontradas.push({
+        tipo: 'cuyes',
+        descripcion: `${cuyes.length} cuy${cuyes.length !== 1 ? 'es' : ''} en esta jaula`,
+        cantidad: cuyes.length,
+        detalles: cuyes.map(cuy => 
+          `Cuy ID ${cuy.id} - ${cuy.raza} ${cuy.sexo} (${cuy.etapaVida}) - ${cuy.estado}`
+        )
+      });
+
+      if (cuyesEnfermos.length > 0) {
+        advertencias.push(`⚠️ Hay ${cuyesEnfermos.length} cuyes enfermos que serán eliminados`);
+      }
+
+      if (cuyesActivos.length > 0) {
+        advertencias.push(`📋 Se eliminarán ${cuyesActivos.length} cuyes activos`);
+      }
+    }
+
+    return {
+      jaula: {
+        id: jaula.id,
+        nombre: jaula.nombre,
+        galponNombre: jaula.galponNombre,
+        descripcion: jaula.descripcion,
+        capacidadMaxima: jaula.capacidadMaxima,
+        tipo: jaula.tipo
+      },
+      relacionesEncontradas,
+      puedeEliminar: true, // Siempre permitir eliminación con advertencia
+      advertencias
+    };
+  } catch (error) {
+    console.error('Error en verificarRelacionesJaula:', error);
+    throw error;
+  }
+};
+
+export const eliminarJaulaConRelaciones = async (id: number) => {
+  try {
+    // Verificar que la jaula existe
+    const jaula = await prisma.jaula.findUnique({
+      where: { id }
+    });
+
+    if (!jaula) {
+      return null;
+    }
+
+    const eliminados = {
+      cuyes: 0,
+      jaula: 1
+    };
+
+    // Usar transacción para asegurar consistencia
+    await prisma.$transaction(async (tx) => {
+      // 1. Eliminar cuyes de la jaula
+      const cuyesEliminados = await tx.cuy.deleteMany({
+        where: { 
+          galpon: jaula.galponNombre,
+          jaula: jaula.nombre
+        }
+      });
+      eliminados.cuyes = cuyesEliminados.count;
+
+      // 2. Eliminar la jaula
+      await tx.jaula.delete({
+        where: { id }
+      });
+    });
+
+    return {
+      eliminados,
+      mensaje: `Jaula "${jaula.nombre}" eliminada junto con ${eliminados.cuyes} cuyes`
+    };
+  } catch (error) {
+    console.error('Error en eliminarJaulaConRelaciones:', error);
     throw error;
   }
 };

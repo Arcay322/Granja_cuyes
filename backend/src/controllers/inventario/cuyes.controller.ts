@@ -134,6 +134,68 @@ export const updateCuy = async (req: Request, res: Response, next: NextFunction)
   }
 };
 
+// Verificar relaciones antes de eliminar
+export const verificarRelacionesCuy = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de cuy inválido'
+      });
+    }
+    
+    const relaciones = await cuyesService.verificarRelacionesCuy(id);
+    
+    res.status(200).json({
+      success: true,
+      data: relaciones,
+      message: 'Relaciones del cuy verificadas exitosamente'
+    });
+  } catch (error: unknown) {
+    console.error('Error en verificarRelacionesCuy:', error);
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes('no encontrado')) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cuy no encontrado'
+      });
+    }
+    next(error);
+  }
+};
+
+// Eliminar cuy con todas sus relaciones
+export const deleteCuyConRelaciones = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de cuy inválido'
+      });
+    }
+    
+    const resultado = await cuyesService.deleteCuyConRelaciones(id);
+    
+    if (resultado.success) {
+      res.status(200).json({
+        success: true,
+        data: resultado,
+        message: `Cuy eliminado exitosamente junto con ${Object.keys(resultado.eliminados).length} tipos de registros relacionados`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Error al eliminar el cuy',
+        errors: resultado.errores
+      });
+    }
+  } catch (error: unknown) {
+    console.error('Error en deleteCuyConRelaciones:', error);
+    next(error);
+  }
+};
+
 export const deleteCuy = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = Number(req.params.id);

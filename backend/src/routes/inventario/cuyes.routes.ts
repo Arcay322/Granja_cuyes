@@ -20,6 +20,10 @@ router.post('/', authenticateToken, cuyesController.createCuy);
 router.put('/:id', authenticateToken, cuyesController.updateCuy);
 router.delete('/:id', authenticateToken, cuyesController.deleteCuy);
 
+// ===== RUTAS PARA ELIMINACIÓN CON VERIFICACIÓN =====
+router.get('/:id/verificar-relaciones', authenticateToken, cuyesController.verificarRelacionesCuy);
+router.delete('/:id/eliminar-con-relaciones', authenticateToken, cuyesController.deleteCuyConRelaciones);
+
 // ===== RUTAS PARA CAMBIAR PROPÓSITO =====
 router.patch('/:id/hacer-reproductor', authenticateToken, cuyesController.cambiarAReproductor);
 router.patch('/:id/enviar-engorde', authenticateToken, cuyesController.cambiarAEngorde);

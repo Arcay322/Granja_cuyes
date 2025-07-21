@@ -16,6 +16,8 @@ import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import DeleteCuyWithRelationsDialog from './DeleteCuyWithRelationsDialog';
+import BulkDeleteWarningDialog from './BulkDeleteWarningDialog';
 
 interface Cuy {
   id: number;
@@ -292,6 +294,54 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     porcentajeGalpon: number;
   } | null>(null);
 
+  // Estados para eliminación con verificación de relaciones
+  const [openDeleteWithRelationsDialog, setOpenDeleteWithRelationsDialog] = useState(false);
+  const [cuyToDelete, setCuyToDelete] = useState<number | null>(null);
+
+  // Estados para el nuevo diálogo de advertencia de eliminación múltiple
+  const [openBulkWarningDialog, setOpenBulkWarningDialog] = useState(false);
+  const [bulkWarningData, setBulkWarningData] = useState<{
+    selectedCount: number;
+    cuyesWithRelations: Array<{
+      id: number;
+      tieneRelaciones: boolean;
+      totalRelaciones: number;
+      raza?: string;
+      sexo?: string;
+      galpon?: string;
+      jaula?: string;
+    }>;
+    totalRelations: number;
+  } | null>(null);
+
+  // Estado para mostrar el diálogo de carga durante verificación de relaciones múltiples
+  const [showBulkVerificationLoading, setShowBulkVerificationLoading] = useState(false);
+
+  // Función para manejar la eliminación confirmada con relaciones
+  const handleDeleteWithRelationsConfirmed = async (cuyId: number) => {
+    try {
+      const response = await api.delete(`/cuyes/${cuyId}/eliminar-con-relaciones`);
+      if (response.data.success) {
+        const eliminados = response.data.data.eliminados;
+        const totalEliminados = Object.values(eliminados).reduce((sum: number, count: number) => sum + count, 0);
+        
+        toastService.success(
+          'Eliminación Exitosa',
+          `Cuy eliminado junto con ${totalEliminados} registros relacionados`
+        );
+        
+        fetchCuyes();
+        fetchStats();
+        setOpenDeleteWithRelationsDialog(false);
+        setCuyToDelete(null);
+      }
+    } catch (error: any) {
+      console.error('Error al eliminar cuy con relaciones:', error);
+      const errorMsg = error.response?.data?.message || 'No se pudo eliminar el cuy';
+      toastService.error('Error al eliminar', errorMsg);
+    }
+  };
+
   // Configuración para diálogo de confirmación de eliminación
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: number) => {
@@ -302,7 +352,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
           fetchStats();
           // La notificación de éxito la maneja automáticamente el hook
         }
-      } catch (error: unknown) {
+      } catch (error: any) {
         const errorMsg = error.response?.data?.error || 'No se pudo eliminar el cuy';
         // Re-lanzar el error para que el hook maneje la notificación de error
         throw new Error(errorMsg);
@@ -315,10 +365,10 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   // Función para aplicar filtros manualmente
   const handleApplyFilters = () => {
     setPagination(prev => ({ ...prev, page: 1 }));
-    fetchCuyes();
+    fetchCuyes(searchTerm); // Pasar el término de búsqueda explícitamente
   };
 
-  const fetchCuyes = useCallback(async () => {
+  const fetchCuyes = useCallback(async (searchTermToUse?: string) => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -331,7 +381,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         ...(filters.estado && { estado: filters.estado }),
         ...(filters.etapaVida && { etapaVida: filters.etapaVida }),
         ...(filters.proposito && { proposito: filters.proposito }),
-        ...(searchTerm && { search: searchTerm })
+        ...(searchTermToUse && { search: searchTermToUse })
       });
 
       const response = await api.get(`/cuyes?${params}`);
@@ -347,7 +397,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, filters, searchTerm]);
+  }, [pagination.page, pagination.limit, filters]);
 
   // Efecto para aplicar filtros desde URL o props al cargar el componente
   useEffect(() => {
@@ -443,16 +493,33 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   }, [presetFilters]);
 
   useEffect(() => {
-    fetchCuyes();
+    fetchCuyes(); // Sin término de búsqueda para carga inicial
     fetchStats();
     fetchGalpones();
     fetchJaulas();
-  }, [fetchCuyes]);
+  }, [pagination.page, pagination.limit, filters, fetchCuyes, fetchStats]);
 
   // Efecto separado para fetchStats cuando cambien los presetFilters
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Efecto para actualizar jaulas disponibles cuando cambie el galpón en el formulario individual
+  useEffect(() => {
+    if (cuyForm.galpon) {
+      // Filtrar jaulas del galpón seleccionado
+      const jaulasDelGalpon = jaulas.filter(jaula => jaula.galponNombre === cuyForm.galpon);
+      setJaulasDisponibles(jaulasDelGalpon);
+      
+      // Si la jaula actual no pertenece al galpón seleccionado, limpiarla
+      if (cuyForm.jaula && !jaulasDelGalpon.some(jaula => jaula.nombre === cuyForm.jaula)) {
+        setCuyForm(prev => ({ ...prev, jaula: '' }));
+      }
+    } else {
+      setJaulasDisponibles([]);
+      setCuyForm(prev => ({ ...prev, jaula: '' }));
+    }
+  }, [cuyForm.galpon, jaulas]);
 
   const fetchEstadisticasAvanzadas = async () => {
     console.log('🔍 Función fetchEstadisticasAvanzadas ejecutada');
@@ -718,7 +785,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       setOpenCuyDialog(false);
       fetchCuyes();
       fetchStats();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error al guardar cuy:', error);
       const errorMsg = error.response?.data?.error || 'No se pudo guardar el cuy';
       toastService.error('Error al guardar', errorMsg);
@@ -734,7 +801,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         toastService.success('Cambio exitoso', 'Cuy cambiado a reproductor exitosamente');
         fetchCuyes();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'No se pudo cambiar a reproductor';
       toastService.error('Error al cambiar', errorMsg);
     }
@@ -747,7 +814,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         toastService.success('Cambio exitoso', 'Cuy enviado a engorde exitosamente');
         fetchCuyes();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'No se pudo enviar a engorde';
       toastService.error('Error al cambiar', errorMsg);
     }
@@ -766,7 +833,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         fetchCuyes();
         fetchStats();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'No se pudieron actualizar las etapas';
       toastService.error('Error al actualizar', errorMsg);
     } finally {
@@ -837,31 +904,123 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
   const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
 
-  const handleBulkDeleteClick = () => {
+  const handleBulkDeleteClick = async () => {
     if (selectedIds.length === 0) {
       toastService.warning('Selección requerida', 'Debe seleccionar al menos un cuy para eliminar');
       return;
     }
-    setOpenBulkDeleteDialog(true);
+
+    // Mostrar diálogo de carga mientras se verifican las relaciones
+    setShowBulkVerificationLoading(true);
+    
+    // Para eliminación múltiple, verificar si algún cuy tiene relaciones
+    setBulkActionLoading(true);
+    try {
+      const verificaciones = await Promise.all(
+        selectedIds.map(async (id) => {
+          try {
+            const response = await api.get(`/cuyes/${id}/verificar-relaciones`);
+            return {
+              id,
+              tieneRelaciones: response.data.data.relacionesEncontradas.length > 0,
+              totalRelaciones: response.data.data.relacionesEncontradas.reduce((sum, rel) => sum + rel.cantidad, 0)
+            };
+          } catch (error) {
+            return { id, tieneRelaciones: false, totalRelaciones: 0 };
+          }
+        })
+      );
+
+      const cuyesConRelaciones = verificaciones.filter(v => v.tieneRelaciones);
+      const totalRelaciones = verificaciones.reduce((sum, v) => sum + v.totalRelaciones, 0);
+
+      // Obtener información adicional de los cuyes para el diálogo
+      const cuyesWithRelationsData = await Promise.all(
+        cuyesConRelaciones.map(async (cuyRel) => {
+          const cuy = cuyes.find(c => c.id === cuyRel.id);
+          return {
+            id: cuyRel.id,
+            tieneRelaciones: cuyRel.tieneRelaciones,
+            totalRelaciones: cuyRel.totalRelaciones,
+            raza: cuy?.raza,
+            sexo: cuy?.sexo,
+            galpon: cuy?.galpon,
+            jaula: cuy?.jaula
+          };
+        })
+      );
+
+      // Configurar datos para el nuevo diálogo de advertencia
+      setBulkWarningData({
+        selectedCount: selectedIds.length,
+        cuyesWithRelations: cuyesWithRelationsData,
+        totalRelations: totalRelaciones
+      });
+
+      setOpenBulkWarningDialog(true);
+    } catch (error) {
+      console.error('Error al verificar relaciones:', error);
+      toastService.error('Error', 'No se pudo verificar las relaciones de los cuyes');
+    } finally {
+      setBulkActionLoading(false);
+      setShowBulkVerificationLoading(false);
+    }
   };
 
   const handleBulkDeleteConfirm = async () => {
     setBulkActionLoading(true);
     try {
-      await Promise.all(selectedIds.map(id => api.delete(`/cuyes/${id}`)));
-
-      toastService.success(
-        'Eliminación Exitosa',
-        `Se eliminaron ${selectedIds.length} cuyes exitosamente`
+      // Usar el endpoint de eliminación con relaciones para cada cuy
+      const resultados = await Promise.all(
+        selectedIds.map(async (id) => {
+          try {
+            const response = await api.delete(`/cuyes/${id}/eliminar-con-relaciones`);
+            return {
+              id,
+              success: response.data.success,
+              eliminados: response.data.data?.eliminados || {},
+              error: null
+            };
+          } catch (error) {
+            return {
+              id,
+              success: false,
+              eliminados: {},
+              error: error.response?.data?.message || 'Error desconocido'
+            };
+          }
+        })
       );
+
+      const exitosos = resultados.filter(r => r.success);
+      const fallidos = resultados.filter(r => !r.success);
+
+      // Calcular total de registros eliminados
+      const totalRegistrosEliminados = exitosos.reduce((total, resultado) => {
+        return total + Object.values(resultado.eliminados).reduce((sum: number, count: number) => sum + count, 0);
+      }, 0);
+
+      if (exitosos.length > 0) {
+        toastService.success(
+          'Eliminación Exitosa',
+          `Se eliminaron ${exitosos.length} cuyes junto con ${totalRegistrosEliminados} registros relacionados${fallidos.length > 0 ? ` (${fallidos.length} errores)` : ''}`
+        );
+      }
+
+      if (fallidos.length > 0 && exitosos.length === 0) {
+        toastService.error(
+          'Error en Eliminación',
+          `No se pudo eliminar ningún cuy. ${fallidos.length} errores encontrados.`
+        );
+      }
 
       setSelectedIds([]);
       setOpenBulkDeleteDialog(false);
       fetchCuyes();
       fetchStats();
-    } catch (error: unknown) {
-      console.error('Error en eliminación masiva:', error);
-      toastService.error('Error al eliminar', 'No se pudieron eliminar algunos cuyes');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Error inesperado durante la eliminación múltiple';
+      toastService.error('Error al eliminar', errorMsg);
     } finally {
       setBulkActionLoading(false);
     }
@@ -870,6 +1029,14 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const handleBulkDeleteCancel = () => {
     setOpenBulkDeleteDialog(false);
   };
+
+  // Función para manejar la confirmación del diálogo de advertencia de eliminación múltiple
+  const handleBulkWarningConfirm = () => {
+    setOpenBulkWarningDialog(false);
+    setOpenBulkDeleteDialog(true);
+  };
+
+
 
   // Funciones para el diálogo de advertencia de capacidad
   const handleCapacidadWarningConfirm = async () => {
@@ -1190,59 +1357,48 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
     setMasiveLoading(true);
     try {
-      const cuyes = [];
-
-      for (let i = 0; i < masiveForm.cantidad; i++) {
-        // Convertir a números para asegurar que no sean strings
-        const pesoMin = parseFloat(masiveForm.pesoMin.toString());
-        const pesoMax = parseFloat(masiveForm.pesoMax.toString());
-        const pesoRandom = pesoMin + (Math.random() * (pesoMax - pesoMin));
-        const sexoRandom = Math.random() > 0.5 ? 'M' : 'H';
-
-        const cuy = {
-          raza: masiveForm.raza,
-          fechaNacimiento: masiveForm.fechaNacimiento,
-          sexo: masiveForm.sexo === 'Aleatorio' ? sexoRandom : masiveForm.sexo,
-          peso: Math.round(pesoRandom * 100) / 100, // Redondear a 2 decimales
-          galpon: masiveForm.galpon,
-          jaula: masiveForm.jaula, // Usar la jaula específica seleccionada
-          estado: masiveForm.estado,
-          etapaVida: masiveForm.etapaVida,
-          proposito: masiveForm.proposito
-        };
-
-        console.log('🐹 Cuy a crear:', cuy);
-        console.log('🔢 Peso calculado:', cuy.peso, 'tipo:', typeof cuy.peso);
-        cuyes.push(cuy);
-      }
-
-      // Crear cuyes uno por uno (podríamos optimizar esto con un endpoint masivo)
-      let creados = 0;
-      let errores = 0;
-
-      for (const cuy of cuyes) {
-        try {
-          const response = await api.post('/cuyes', cuy);
-          if (response.data.success) {
-            creados++;
-          } else {
-            errores++;
+      // Usar el endpoint masivo optimizado
+      const registroMasivoData = {
+        galpon: masiveForm.galpon,
+        jaula: masiveForm.jaula,
+        raza: masiveForm.raza,
+        grupos: [
+          {
+            sexo: masiveForm.sexo === 'Aleatorio' ? 'M' : masiveForm.sexo, // Para el primer grupo
+            cantidad: masiveForm.sexo === 'Aleatorio' ? Math.ceil(masiveForm.cantidad / 2) : masiveForm.cantidad,
+            edadDias: Math.floor((new Date().getTime() - new Date(masiveForm.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24)),
+            pesoPromedio: (parseFloat(masiveForm.pesoMin.toString()) + parseFloat(masiveForm.pesoMax.toString())) / 2 * 1000, // Convertir a gramos
+            variacionPeso: Math.abs(parseFloat(masiveForm.pesoMax.toString()) - parseFloat(masiveForm.pesoMin.toString())) * 500 // Variación en gramos
           }
-        } catch (error) {
-          errores++;
-        }
+        ]
+      };
+
+      // Si es aleatorio, agregar grupo de hembras
+      if (masiveForm.sexo === 'Aleatorio') {
+        registroMasivoData.grupos.push({
+          sexo: 'H',
+          cantidad: Math.floor(masiveForm.cantidad / 2),
+          edadDias: Math.floor((new Date().getTime() - new Date(masiveForm.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24)),
+          pesoPromedio: (parseFloat(masiveForm.pesoMin.toString()) + parseFloat(masiveForm.pesoMax.toString())) / 2 * 1000,
+          variacionPeso: Math.abs(parseFloat(masiveForm.pesoMax.toString()) - parseFloat(masiveForm.pesoMin.toString())) * 500
+        });
       }
 
-      if (creados > 0) {
+      console.log('📦 Datos para registro masivo:', registroMasivoData);
+
+      const response = await api.post('/cuyes/jaula', registroMasivoData);
+      
+      if (response.data.success) {
+        const creados = response.data.data.length;
         toastService.success(
           'Registro Masivo Exitoso',
-          `Se crearon ${creados} cuyes exitosamente en ${masiveForm.galpon}-${masiveForm.jaula}${errores > 0 ? ` (${errores} errores)` : ''}`
+          `Se crearon ${creados} cuyes exitosamente en ${masiveForm.galpon}-${masiveForm.jaula}`
         );
         setOpenMasiveDialog(false);
         fetchCuyes();
         fetchStats();
       } else {
-        toastService.error('Error en Registro Masivo', 'No se pudo crear ningún cuy');
+        toastService.error('Error en Registro Masivo', response.data.message || 'No se pudo crear los cuyes');
       }
     } catch (error) {
       console.error('Error en registro masivo:', error);
@@ -1458,7 +1614,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
           alignItems: { xs: 'stretch', sm: 'center' }
         }}>
           <TextField
-            placeholder="Buscar cuyes..."
+            placeholder="Buscar por ID, raza, galpón, jaula, peso, fecha, edad, sexo..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             size="small"
@@ -1724,7 +1880,10 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                     <Tooltip title="Eliminar cuy">
                       <IconButton
                         size="small"
-                        onClick={() => deleteConfirmation.handleDeleteClick(cuy.id)}
+                        onClick={() => {
+                          setCuyToDelete(cuy.id);
+                          setOpenDeleteWithRelationsDialog(true);
+                        }}
                         sx={{ color: theme.palette.error.main }}
                       >
                         <Delete fontSize="small" />
@@ -1908,7 +2067,10 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                         <Tooltip title="Eliminar cuy">
                           <IconButton
                             size="small"
-                            onClick={() => deleteConfirmation.handleDeleteClick(cuy.id)}
+                            onClick={() => {
+                              setCuyToDelete(cuy.id);
+                              setOpenDeleteWithRelationsDialog(true);
+                            }}
                             sx={{ color: theme.palette.error.main }}
                           >
                             <Delete fontSize="small" />
@@ -2051,30 +2213,114 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-              <TextField
-                label="Galpón"
-                name="galpon"
-                value={cuyForm.galpon}
-                onChange={handleCuyChange}
-                fullWidth
-                required
-                error={!!cuyErrors.galpon}
-                helperText={cuyErrors.galpon}
-                size="small"
-              />
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <FormControl fullWidth size="small" required error={!!cuyErrors.galpon}>
+                    <InputLabel>Galpón</InputLabel>
+                    <Select
+                      name="galpon"
+                      value={cuyForm.galpon}
+                      onChange={handleCuyChange}
+                      label="Galpón"
+                    >
+                      <MenuItem value="">
+                        <em>Seleccionar galpón</em>
+                      </MenuItem>
+                      {galpones.map(galpon => (
+                        <MenuItem key={galpon.id} value={galpon.nombre}>
+                          {galpon.nombre}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {cuyErrors.galpon && <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>{cuyErrors.galpon}</Typography>}
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setOpenNewGalponDialog(true)}
+                    sx={{ minWidth: 'auto', px: 1 }}
+                    title="Agregar nuevo galpón"
+                  >
+                    <Add fontSize="small" />
+                  </Button>
+                </Box>
+              </Box>
 
-              <TextField
-                label="Jaula"
-                name="jaula"
-                value={cuyForm.jaula}
-                onChange={handleCuyChange}
-                fullWidth
-                required
-                error={!!cuyErrors.jaula}
-                helperText={cuyErrors.jaula}
-                size="small"
-              />
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <FormControl fullWidth size="small" required disabled={!cuyForm.galpon} error={!!cuyErrors.jaula}>
+                    <InputLabel>Jaula</InputLabel>
+                    <Select
+                      name="jaula"
+                      value={cuyForm.jaula}
+                      onChange={handleCuyChange}
+                      label="Jaula"
+                    >
+                      <MenuItem value="">
+                        <em>Seleccionar jaula</em>
+                      </MenuItem>
+                      {jaulasDisponibles
+                        .filter(jaula => jaula.galponNombre === cuyForm.galpon)
+                        .map(jaula => (
+                          <MenuItem key={jaula.id} value={jaula.nombre}>
+                            {jaula.nombre} {jaula.capacidadMaxima ? `(Cap: ${jaula.capacidadMaxima})` : ''}
+                          </MenuItem>
+                        ))}
+                    </Select>
+                    {cuyErrors.jaula && <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>{cuyErrors.jaula}</Typography>}
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setNewJaulaForm(prev => ({ ...prev, galponNombre: cuyForm.galpon }));
+                      setOpenNewJaulaDialog(true);
+                    }}
+                    disabled={!cuyForm.galpon}
+                    sx={{ minWidth: 'auto', px: 1 }}
+                    title="Agregar nueva jaula"
+                  >
+                    <Add fontSize="small" />
+                  </Button>
+                </Box>
+                {!cuyForm.galpon ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    Primero selecciona un galpón
+                  </Typography>
+                ) : jaulasDisponibles.filter(jaula => jaula.galponNombre === cuyForm.galpon).length === 0 ? (
+                  <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: 'block' }}>
+                    No hay jaulas disponibles en este galpón
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    {jaulasDisponibles.filter(jaula => jaula.galponNombre === cuyForm.galpon).length} jaula{jaulasDisponibles.filter(jaula => jaula.galponNombre === cuyForm.galpon).length !== 1 ? 's' : ''} disponible{jaulasDisponibles.filter(jaula => jaula.galponNombre === cuyForm.galpon).length !== 1 ? 's' : ''}
+                  </Typography>
+                )}
+              </Box>
             </Box>
+
+            {/* Información de capacidad en tiempo real */}
+            {cuyForm.galpon && cuyForm.jaula && (
+              <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: 'info.main' }}>
+                  📊 Información de Capacidad
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    📍 {cuyForm.galpon} - {cuyForm.jaula}
+                  </Typography>
+                  <Chip 
+                    label="Verificando capacidad..." 
+                    size="small" 
+                    color="info" 
+                    variant="outlined"
+                  />
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  La información de capacidad se actualizará automáticamente
+                </Typography>
+              </Paper>
+            )}
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
               <FormControl fullWidth size="small">
@@ -3188,6 +3434,56 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Diálogo de carga para verificación de relaciones múltiples */}
+      <Dialog 
+        open={showBulkVerificationLoading} 
+        maxWidth="sm" 
+        fullWidth
+        disableEscapeKeyDown
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            padding: 2
+          }
+        }}
+      >
+        <DialogContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+            <CircularProgress sx={{ mr: 2 }} />
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Verificando relaciones...
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Analizando {selectedIds.length} cuyes seleccionados para detectar registros relacionados
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nuevo diálogo de advertencia para eliminación múltiple */}
+      <BulkDeleteWarningDialog
+        open={openBulkWarningDialog}
+        onClose={() => setOpenBulkWarningDialog(false)}
+        onConfirm={handleBulkWarningConfirm}
+        selectedCount={bulkWarningData?.selectedCount || 0}
+        cuyesWithRelations={bulkWarningData?.cuyesWithRelations || []}
+        totalRelations={bulkWarningData?.totalRelations || 0}
+        loading={bulkActionLoading}
+      />
+
+      {/* Diálogo de eliminación con verificación de relaciones */}
+      <DeleteCuyWithRelationsDialog
+        open={openDeleteWithRelationsDialog}
+        onClose={() => {
+          setOpenDeleteWithRelationsDialog(false);
+          setCuyToDelete(null);
+        }}
+        cuyId={cuyToDelete}
+        onDeleteConfirmed={handleDeleteWithRelationsConfirmed}
+      />
     </Box>
   );
 };

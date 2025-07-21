@@ -84,16 +84,149 @@ export const getAllCuyesPaginated = async (filters: CuyFilters = {}, pagination:
     if (filters.etapaVida) whereClause.etapaVida = filters.etapaVida;
     if (filters.proposito) whereClause.proposito = filters.proposito;
 
-    // Búsqueda global
+    // Búsqueda global expandida
     if (filters.search) {
-      whereClause.OR = [
+      const searchTerm = filters.search.toLowerCase().trim();
+      const searchConditions = [];
+
+      // Búsqueda por texto en campos string
+      searchConditions.push(
         { raza: { contains: filters.search, mode: 'insensitive' } },
         { galpon: { contains: filters.search, mode: 'insensitive' } },
         { jaula: { contains: filters.search, mode: 'insensitive' } },
         { estado: { contains: filters.search, mode: 'insensitive' } },
         { etapaVida: { contains: filters.search, mode: 'insensitive' } },
-        { proposito: { contains: filters.search, mode: 'insensitive' } }
+        { proposito: { contains: filters.search, mode: 'insensitive' } },
+        { sexo: { contains: filters.search, mode: 'insensitive' } }
+      );
+
+      // Búsqueda por ID (si es un número)
+      const searchAsNumber = parseFloat(searchTerm);
+      if (!isNaN(searchAsNumber)) {
+        // Búsqueda exacta por ID
+        if (Number.isInteger(searchAsNumber) && searchAsNumber > 0) {
+          searchConditions.push({ id: { equals: Math.floor(searchAsNumber) } });
+        }
+        
+        // Búsqueda por peso (con tolerancia de ±0.1 kg)
+        if (searchAsNumber > 0 && searchAsNumber < 10) { // Rango razonable para peso de cuyes
+          searchConditions.push(
+            { peso: { gte: searchAsNumber - 0.1, lte: searchAsNumber + 0.1 } }
+          );
+        }
+      }
+
+      // Búsqueda por términos específicos de sexo
+      if (searchTerm === 'm' || searchTerm === 'macho' || searchTerm === 'masculino') {
+        searchConditions.push({ sexo: 'M' });
+      }
+      if (searchTerm === 'h' || searchTerm === 'hembra' || searchTerm === 'femenino') {
+        searchConditions.push({ sexo: 'H' });
+      }
+
+      // Búsqueda por fechas (formato YYYY-MM-DD o DD/MM/YYYY)
+      const datePatterns = [
+        /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+        /^\d{2}\/\d{2}\/\d{4}$/, // DD/MM/YYYY
+        /^\d{1,2}\/\d{1,2}\/\d{4}$/ // D/M/YYYY o DD/M/YYYY
       ];
+
+      for (const pattern of datePatterns) {
+        if (pattern.test(searchTerm)) {
+          let searchDate: Date;
+          
+          if (searchTerm.includes('-')) {
+            // Formato YYYY-MM-DD
+            searchDate = new Date(searchTerm);
+          } else {
+            // Formato DD/MM/YYYY
+            const [day, month, year] = searchTerm.split('/');
+            searchDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+
+          if (!isNaN(searchDate.getTime())) {
+            const startOfDay = new Date(searchDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(searchDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            searchConditions.push(
+              { fechaNacimiento: { gte: startOfDay, lte: endOfDay } },
+              { fechaRegistro: { gte: startOfDay, lte: endOfDay } },
+              { ultimaEvaluacion: { gte: startOfDay, lte: endOfDay } }
+            );
+
+            // Incluir fechas de venta y fallecimiento si no son null
+            searchConditions.push(
+              { 
+                AND: [
+                  { fechaVenta: { not: null } },
+                  { fechaVenta: { gte: startOfDay, lte: endOfDay } }
+                ]
+              },
+              { 
+                AND: [
+                  { fechaFallecimiento: { not: null } },
+                  { fechaFallecimiento: { gte: startOfDay, lte: endOfDay } }
+                ]
+              }
+            );
+          }
+          break;
+        }
+      }
+
+      // Búsqueda por términos de edad aproximada
+      if (searchTerm.includes('mes') || searchTerm.includes('año')) {
+        const now = new Date();
+        let targetDate: Date | null = null;
+
+        // Buscar patrones como "2 meses", "1 año", etc.
+        const ageMatch = searchTerm.match(/(\d+)\s*(mes|año|meses|años)/);
+        if (ageMatch) {
+          const amount = parseInt(ageMatch[1]);
+          const unit = ageMatch[2];
+          
+          targetDate = new Date(now);
+          if (unit.includes('mes')) {
+            targetDate.setMonth(targetDate.getMonth() - amount);
+          } else if (unit.includes('año')) {
+            targetDate.setFullYear(targetDate.getFullYear() - amount);
+          }
+
+          if (targetDate) {
+            // Buscar cuyes nacidos aproximadamente en esa fecha (±15 días)
+            const startRange = new Date(targetDate);
+            startRange.setDate(startRange.getDate() - 15);
+            const endRange = new Date(targetDate);
+            endRange.setDate(endRange.getDate() + 15);
+
+            searchConditions.push({
+              fechaNacimiento: { gte: startRange, lte: endRange }
+            });
+          }
+        }
+      }
+
+      // Búsqueda por términos relacionados con estados especiales
+      const estadoTerminos: Record<string, unknown> = {
+        'nuevo': { fechaRegistro: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }, // Últimos 7 días
+        'reciente': { fechaRegistro: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }, // Último mes
+        'joven': { fechaNacimiento: { gte: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) } }, // Menos de 6 meses
+        'adulto': { fechaNacimiento: { lte: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) } }, // Más de 6 meses
+        'pesado': { peso: { gte: 1.2 } }, // Más de 1.2 kg
+        'liviano': { peso: { lte: 0.8 } }, // Menos de 0.8 kg
+        'ligero': { peso: { lte: 0.8 } }
+      };
+
+      if (estadoTerminos[searchTerm]) {
+        searchConditions.push(estadoTerminos[searchTerm]);
+      }
+
+      // Aplicar todas las condiciones de búsqueda
+      if (searchConditions.length > 0) {
+        whereClause.OR = searchConditions;
+      }
     }
 
     // Calcular offset para paginación
@@ -186,13 +319,13 @@ export const createCuy = async (data: CreateCuyData): Promise<Cuy> => {
   // Verificar y crear galpón si no existe
   if (data.galpon) {
     try {
-      const galponExistente = await prisma.galpon.findFirst({
+      let galponExistente = await prisma.galpon.findFirst({
         where: { nombre: data.galpon }
       });
 
       if (!galponExistente) {
         console.log(`🏠 Creando galpón automáticamente: ${data.galpon}`);
-        await prisma.galpon.create({
+        galponExistente = await prisma.galpon.create({
           data: {
             nombre: data.galpon,
             descripcion: `Galpón ${data.galpon} creado automáticamente`,
@@ -204,9 +337,35 @@ export const createCuy = async (data: CreateCuyData): Promise<Cuy> => {
         });
         console.log(`✅ Galpón ${data.galpon} creado exitosamente`);
       }
+
+      // Verificar y crear jaula si no existe
+      if (data.jaula) {
+        const jaulaExistente = await prisma.jaula.findFirst({
+          where: { 
+            nombre: data.jaula,
+            galponNombre: data.galpon
+          }
+        });
+
+        if (!jaulaExistente) {
+          console.log(`🏠 Creando jaula automáticamente: ${data.jaula} en galpón ${data.galpon}`);
+          await prisma.jaula.create({
+            data: {
+              nombre: data.jaula,
+              galponId: galponExistente.id,
+              galponNombre: data.galpon,
+              descripcion: `Jaula ${data.jaula} creada automáticamente`,
+              capacidadMaxima: 10, // Capacidad por defecto para jaulas
+              tipo: 'Estándar',
+              estado: 'Activo'
+            }
+          });
+          console.log(`✅ Jaula ${data.jaula} creada exitosamente en galpón ${data.galpon}`);
+        }
+      }
     } catch (error) {
-      console.error(`❌ Error al verificar/crear galpón ${data.galpon}:`, error);
-      // Continuar con la creación del cuy aunque falle la creación del galpón
+      console.error(`❌ Error al verificar/crear galpón/jaula ${data.galpon}/${data.jaula}:`, error);
+      // Continuar con la creación del cuy aunque falle la creación del galpón/jaula
     }
   }
 
@@ -273,6 +432,263 @@ export const updateCuy = async (id: number, data: Partial<CreateCuyData>): Promi
   });
 };
 
+// Función para verificar relaciones de un cuy antes de eliminar
+export const verificarRelacionesCuy = async (id: number) => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw new Error('ID de cuy inválido');
+  }
+
+  try {
+    const cuy = await prisma.cuy.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!cuy) {
+      throw new Error('Cuy no encontrado');
+    }
+
+    const relaciones = {
+      cuy: {
+        id: cuy.id,
+        raza: cuy.raza,
+        sexo: cuy.sexo,
+        galpon: cuy.galpon,
+        jaula: cuy.jaula,
+        etapaVida: cuy.etapaVida
+      },
+      relacionesEncontradas: [] as Array<{
+        modulo: string;
+        descripcion: string;
+        cantidad: number;
+        detalles: string[];
+      }>,
+      puedeEliminar: true,
+      advertencias: [] as string[]
+    };
+
+    // Verificar historial de salud
+    const historialSalud = await prisma.historialSalud.findMany({
+      where: { cuyId: id }
+    });
+
+    if (historialSalud.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Salud',
+        descripcion: 'Registros médicos y tratamientos',
+        cantidad: historialSalud.length,
+        detalles: historialSalud.map(h => `${h.tipo}: ${h.descripcion} (${h.fecha.toLocaleDateString()})`)
+      });
+    }
+
+    // Verificar si es madre en camadas
+    const camadas = await prisma.camada.findMany({
+      where: { madreId: id }
+    });
+
+    if (camadas.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Reproducción - Camadas',
+        descripcion: 'Camadas donde es la madre',
+        cantidad: camadas.length,
+        detalles: camadas.map(c => `Camada del ${c.fechaNacimiento?.toLocaleDateString() || 'Sin fecha'} - ${c.numVivos} crías vivas`)
+      });
+    }
+
+    // Verificar si es padre en camadas
+    const camadasPadre = await prisma.camada.findMany({
+      where: { padreId: id }
+    });
+
+    if (camadasPadre.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Reproducción - Camadas (Padre)',
+        descripcion: 'Camadas donde es el padre',
+        cantidad: camadasPadre.length,
+        detalles: camadasPadre.map(c => `Camada del ${c.fechaNacimiento?.toLocaleDateString() || 'Sin fecha'} - ${c.numVivos} crías vivas`)
+      });
+    }
+
+    // Verificar preñez
+    const prenez = await prisma.prenez.findMany({
+      where: { 
+        OR: [
+          { madreId: id },
+          { padreId: id }
+        ]
+      }
+    });
+
+    if (prenez.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Reproducción - Preñez',
+        descripcion: 'Registros de preñez activos',
+        cantidad: prenez.length,
+        detalles: prenez.map(p => `Preñez iniciada el ${p.fechaPrenez.toLocaleDateString()} - Estado: ${p.estado}`)
+      });
+    }
+
+    // Verificar ventas
+    const ventas = await prisma.venta.findMany({
+      where: { 
+        detalles: {
+          some: {
+            cuyId: id
+          }
+        }
+      },
+      include: {
+        detalles: {
+          where: { cuyId: id }
+        }
+      }
+    });
+
+    if (ventas.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Ventas',
+        descripcion: 'Registros de ventas',
+        cantidad: ventas.length,
+        detalles: ventas.map(v => `Venta del ${v.fecha.toLocaleDateString()} - Cliente ID: ${v.clienteId}`)
+      });
+    }
+
+    // Verificar consumo de alimentos (simplificado para evitar errores de campos)
+    const consumoAlimentos = await prisma.consumoAlimento.findMany({
+      where: { 
+        galpon: cuy.galpon
+      }
+    });
+
+    if (consumoAlimentos.length > 0) {
+      relaciones.relacionesEncontradas.push({
+        modulo: 'Alimentación',
+        descripcion: 'Registros de consumo de alimentos',
+        cantidad: consumoAlimentos.length,
+        detalles: consumoAlimentos.slice(0, 3).map(c => `${c.fecha.toLocaleDateString()} - Alimento ID: ${c.alimentoId}`)
+      });
+    }
+
+    // Generar advertencias
+    if (relaciones.relacionesEncontradas.length > 0) {
+      relaciones.puedeEliminar = false;
+      relaciones.advertencias.push(
+        `Este cuy tiene ${relaciones.relacionesEncontradas.length} tipo(s) de registros relacionados.`
+      );
+      
+      const totalRegistros = relaciones.relacionesEncontradas.reduce((sum, rel) => sum + rel.cantidad, 0);
+      relaciones.advertencias.push(
+        `Se eliminarán ${totalRegistros} registros en total de los módulos: ${relaciones.relacionesEncontradas.map(r => r.modulo).join(', ')}.`
+      );
+
+      if (camadas.length > 0 || camadasPadre.length > 0) {
+        relaciones.advertencias.push(
+          '⚠️ ATENCIÓN: Este cuy tiene camadas registradas. Eliminar este cuy puede afectar el historial reproductivo.'
+        );
+      }
+
+      if (prenez.length > 0) {
+        relaciones.advertencias.push(
+          '⚠️ ATENCIÓN: Este cuy tiene registros de preñez activos.'
+        );
+      }
+    }
+
+    return relaciones;
+  } catch (error) {
+    console.error('Error al verificar relaciones del cuy:', error);
+    throw error;
+  }
+};
+
+// Función para eliminar cuy con todas sus relaciones (eliminación en cascada)
+export const deleteCuyConRelaciones = async (id: number): Promise<{
+  success: boolean;
+  eliminados: Record<string, number>;
+  errores: string[];
+}> => {
+  if (isNaN(id) || id === undefined || id === null) {
+    throw new Error('ID de cuy inválido');
+  }
+
+  const resultado = {
+    success: false,
+    eliminados: {} as Record<string, number>,
+    errores: [] as string[]
+  };
+
+  try {
+    // Usar transacción para asegurar consistencia
+    await prisma.$transaction(async (tx) => {
+      // 1. Eliminar historial de salud
+      const historialSaludEliminado = await tx.historialSalud.deleteMany({
+        where: { cuyId: id }
+      });
+      if (historialSaludEliminado.count > 0) {
+        resultado.eliminados['Historial de Salud'] = historialSaludEliminado.count;
+      }
+
+      // 2. Eliminar detalles de ventas
+      const detallesVentaEliminados = await tx.ventaDetalle.deleteMany({
+        where: { cuyId: id }
+      });
+      if (detallesVentaEliminados.count > 0) {
+        resultado.eliminados['Detalles de Venta'] = detallesVentaEliminados.count;
+      }
+
+      // 3. Actualizar camadas donde es madre (no eliminar, solo quitar referencia)
+      const camadasMadre = await tx.camada.updateMany({
+        where: { madreId: id },
+        data: { madreId: null }
+      });
+      if (camadasMadre.count > 0) {
+        resultado.eliminados['Referencias en Camadas (Madre)'] = camadasMadre.count;
+      }
+
+      // 4. Actualizar camadas donde es padre (no eliminar, solo quitar referencia)
+      const camadasPadre = await tx.camada.updateMany({
+        where: { padreId: id },
+        data: { padreId: null }
+      });
+      if (camadasPadre.count > 0) {
+        resultado.eliminados['Referencias en Camadas (Padre)'] = camadasPadre.count;
+      }
+
+      // 5. Eliminar registros de preñez
+      const prenezEliminados = await tx.prenez.deleteMany({
+        where: { 
+          OR: [
+            { madreId: id },
+            { padreId: id }
+          ]
+        }
+      });
+      if (prenezEliminados.count > 0) {
+        resultado.eliminados['Registros de Preñez'] = prenezEliminados.count;
+      }
+
+      // 6. Finalmente, eliminar el cuy
+      const cuyEliminado = await tx.cuy.delete({
+        where: { id: Number(id) }
+      });
+      
+      if (cuyEliminado) {
+        resultado.eliminados['Cuy'] = 1;
+        resultado.success = true;
+      }
+    });
+
+    console.log(`✅ Cuy ${id} eliminado exitosamente con todas sus relaciones:`, resultado.eliminados);
+    return resultado;
+
+  } catch (error) {
+    console.error('Error al eliminar cuy con relaciones:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    resultado.errores.push(`Error al eliminar cuy: ${errorMessage}`);
+    return resultado;
+  }
+};
+
+// Función original de eliminación simple (mantener para compatibilidad)
 export const deleteCuy = async (id: number): Promise<boolean> => {
   if (isNaN(id) || id === undefined || id === null) {
     throw new Error('ID de cuy inválido');
@@ -451,6 +867,59 @@ interface RegistroJaulaData {
 
 export const crearCuyesPorJaula = async (data: RegistroJaulaData): Promise<Cuy[]> => {
   try {
+    console.log(`🚀 Iniciando registro masivo:`, JSON.stringify(data, null, 2));
+    
+    // Verificar y crear galpón/jaula si no existen antes de crear los cuyes
+    if (data.galpon) {
+      let galponExistente = await prisma.galpon.findFirst({
+        where: { nombre: data.galpon }
+      });
+
+      if (!galponExistente) {
+        console.log(`🏠 Creando galpón automáticamente para registro masivo: ${data.galpon}`);
+        galponExistente = await prisma.galpon.create({
+          data: {
+            nombre: data.galpon,
+            descripcion: `Galpón ${data.galpon} creado automáticamente`,
+            ubicacion: `Ubicación del galpón ${data.galpon}`,
+            capacidadMaxima: 50, // Capacidad por defecto
+            estado: 'Activo'
+          }
+        });
+        console.log(`✅ Galpón ${data.galpon} creado exitosamente para registro masivo`);
+      } else {
+        console.log(`✅ Galpón ${data.galpon} ya existe`);
+      }
+
+      // Verificar y crear jaula si no existe
+      if (data.jaula) {
+        const jaulaExistente = await prisma.jaula.findFirst({
+          where: { 
+            nombre: data.jaula,
+            galponNombre: data.galpon
+          }
+        });
+
+        if (!jaulaExistente) {
+          console.log(`🏠 Creando jaula automáticamente para registro masivo: ${data.jaula} en galpón ${data.galpon}`);
+          await prisma.jaula.create({
+            data: {
+              nombre: data.jaula,
+              galponId: galponExistente.id,
+              galponNombre: data.galpon,
+              descripcion: `Jaula ${data.jaula} creada automáticamente`,
+              capacidadMaxima: 10, // Capacidad por defecto para jaulas
+              tipo: 'Estándar',
+              estado: 'Activo'
+            }
+          });
+          console.log(`✅ Jaula ${data.jaula} creada exitosamente en galpón ${data.galpon} para registro masivo`);
+        } else {
+          console.log(`✅ Jaula ${data.jaula} ya existe en galpón ${data.galpon}`);
+        }
+      }
+    }
+
     const cuyesCreados: Cuy[] = [];
 
     for (const grupo of data.grupos) {

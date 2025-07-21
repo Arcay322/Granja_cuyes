@@ -14,6 +14,8 @@ import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import DeleteGalponWithRelationsDialog from './DeleteGalponWithRelationsDialog';
+import DeleteJaulaWithRelationsDialog from './DeleteJaulaWithRelationsDialog';
 import CuyesManagerFixed from './CuyesManagerFixed';
 
 interface Galpon {
@@ -126,38 +128,50 @@ const GalponesManagerFixed: React.FC = () => {
     capacidadMaxima: ''
   });
 
+  // Estados para eliminación con relaciones
+  const [openDeleteGalponWithRelationsDialog, setOpenDeleteGalponWithRelationsDialog] = useState(false);
+  const [openDeleteJaulaWithRelationsDialog, setOpenDeleteJaulaWithRelationsDialog] = useState(false);
+  const [galponToDelete, setGalponToDelete] = useState<number | null>(null);
+  const [jaulaToDelete, setJaulaToDelete] = useState<number | null>(null);
+
   // Configuración para diálogo de confirmación de eliminación
   const deleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: number) => {
       try {
-        await api.delete(`/galpones/${id}`);
-        fetchGalpones();
-        toastService.success('Galpón eliminado', 'El galpón ha sido eliminado exitosamente');
-      } catch (error: unknown) {
-        const errorMsg = error.response?.data?.error || 'No se pudo eliminar el galpón';
-        toastService.error('Error al eliminar', errorMsg);
+        const response = await api.delete(`/galpones/${id}`);
+        if (response.data.success) {
+          fetchGalpones();
+          // La notificación de éxito la maneja automáticamente el hook
+        }
+      } catch (error: any) {
+        const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo eliminar el galpón';
+        // Re-lanzar el error para que el hook maneje la notificación de error
+        throw new Error(errorMsg);
       }
     },
     itemName: 'galpón',
-    successMessage: 'Galpón eliminado exitosamente'
+    successMessage: 'El galpón ha sido eliminado exitosamente'
   });
 
   const jaulaDeleteConfirmation = useDeleteConfirmation({
     onDelete: async (id: number) => {
       try {
-        await api.delete(`/galpones/jaulas/${id}`);
-        if (selectedGalpon) {
-          fetchGalponDetails(selectedGalpon.id);
+        const response = await api.delete(`/galpones/jaulas/${id}`);
+        if (response.data.success) {
+          if (selectedGalpon) {
+            fetchGalponDetails(selectedGalpon.id);
+          }
+          fetchGalpones();
+          // La notificación de éxito la maneja automáticamente el hook
         }
-        fetchGalpones();
-        toastService.success('Jaula eliminada', 'La jaula ha sido eliminada exitosamente');
-      } catch (error: unknown) {
-        const errorMsg = error.response?.data?.error || 'No se pudo eliminar la jaula';
-        toastService.error('Error al eliminar', errorMsg);
+      } catch (error: any) {
+        const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo eliminar la jaula';
+        // Re-lanzar el error para que el hook maneje la notificación de error
+        throw new Error(errorMsg);
       }
     },
     itemName: 'jaula',
-    successMessage: 'Jaula eliminada exitosamente'
+    successMessage: 'La jaula ha sido eliminada exitosamente'
   });
 
   useEffect(() => {
@@ -190,11 +204,11 @@ const GalponesManagerFixed: React.FC = () => {
   const handleOpenGalponDialog = (galpon?: Galpon) => {
     if (galpon) {
       setGalponForm({
-        nombre: galpon.nombre,
+        nombre: galpon.nombre || '',
         descripcion: galpon.descripcion || '',
         ubicacion: galpon.ubicacion || '',
-        capacidadMaxima: galpon.capacidadMaxima,
-        estado: galpon.estado
+        capacidadMaxima: galpon.capacidadMaxima || 50,
+        estado: galpon.estado || 'Activo'
       });
       setEditId(galpon.id);
     } else {
@@ -209,13 +223,13 @@ const GalponesManagerFixed: React.FC = () => {
     setSelectedGalpon(galpon);
     if (jaula) {
       setJaulaForm({
-        nombre: jaula.nombre,
-        galponId: jaula.galponId,
-        galponNombre: jaula.galponNombre,
+        nombre: jaula.nombre || '',
+        galponId: jaula.galponId || galpon.id,
+        galponNombre: jaula.galponNombre || galpon.nombre,
         descripcion: jaula.descripcion || '',
-        capacidadMaxima: jaula.capacidadMaxima,
-        tipo: jaula.tipo,
-        estado: jaula.estado
+        capacidadMaxima: jaula.capacidadMaxima || 10,
+        tipo: jaula.tipo || 'Estándar',
+        estado: jaula.estado || 'Activo'
       });
       setEditId(jaula.id);
     } else {
@@ -315,18 +329,39 @@ const GalponesManagerFixed: React.FC = () => {
     if (!validateGalponForm()) return;
     try {
       setLoading(true);
+      
+      // Ensure all required fields are properly set
+      const galponData = {
+        ...galponForm,
+        capacidadMaxima: Number(galponForm.capacidadMaxima) || 50,
+        estado: galponForm.estado || 'Activo'
+      };
+
+      // Validate required fields
+      if (!galponData.nombre || galponData.nombre.trim() === '') {
+        toastService.error('Error de validación', 'El nombre del galpón es requerido');
+        return;
+      }
+
+      if (galponData.capacidadMaxima <= 0) {
+        toastService.error('Error de validación', 'La capacidad máxima debe ser mayor a 0');
+        return;
+      }
+
+      console.log('Datos de galpón a enviar:', galponData);
+
       if (editId) {
-        await api.put(`/galpones/${editId}`, galponForm);
+        await api.put(`/galpones/${editId}`, galponData);
         toastService.success('Galpón actualizado', 'El galpón ha sido actualizado exitosamente');
       } else {
-        await api.post('/galpones', galponForm);
+        await api.post('/galpones', galponData);
         toastService.success('Galpón creado', 'El galpón ha sido creado exitosamente');
       }
       setOpenGalponDialog(false);
       fetchGalpones();
     } catch (error: unknown) {
       console.error('Error al guardar galpón:', error);
-      const errorMsg = error.response?.data?.error || 'No se pudo guardar el galpón';
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo guardar el galpón';
       toastService.error('Error al guardar', errorMsg);
     } finally {
       setLoading(false);
@@ -337,11 +372,28 @@ const GalponesManagerFixed: React.FC = () => {
     if (!validateJaulaForm()) return;
     try {
       setLoading(true);
+      
+      // Ensure galponId is valid
+      const jaulaData = {
+        ...jaulaForm,
+        galponId: jaulaForm.galponId || selectedGalpon?.id || 0,
+        galponNombre: jaulaForm.galponNombre || selectedGalpon?.nombre || '',
+        capacidadMaxima: Number(jaulaForm.capacidadMaxima) || 10
+      };
+
+      // Validate required fields
+      if (!jaulaData.nombre || !jaulaData.galponId || jaulaData.galponId <= 0) {
+        toastService.error('Error de validación', 'Faltan datos requeridos para la jaula');
+        return;
+      }
+
+      console.log('Datos de jaula a enviar:', jaulaData);
+
       if (editId) {
-        await api.put(`/galpones/jaulas/${editId}`, jaulaForm);
+        await api.put(`/galpones/jaulas/${editId}`, jaulaData);
         toastService.success('Jaula actualizada', 'La jaula ha sido actualizada exitosamente');
       } else {
-        await api.post('/galpones/jaulas', jaulaForm);
+        await api.post('/galpones/jaulas', jaulaData);
         toastService.success('Jaula creada', 'La jaula ha sido creada exitosamente');
       }
       setOpenJaulaDialog(false);
@@ -351,7 +403,7 @@ const GalponesManagerFixed: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Error al guardar jaula:', error);
-      const errorMsg = error.response?.data?.error || 'No se pudo guardar la jaula';
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo guardar la jaula';
       toastService.error('Error al guardar', errorMsg);
     } finally {
       setLoading(false);
@@ -413,6 +465,50 @@ const GalponesManagerFixed: React.FC = () => {
     setCurrentView('jaulas');
     setSelectedJaula(null);
     setJaulasCuyes([]);
+  };
+
+  // Funciones para eliminación con relaciones
+  const handleDeleteGalponWithRelations = (galponId: number) => {
+    setGalponToDelete(galponId);
+    setOpenDeleteGalponWithRelationsDialog(true);
+  };
+
+  const handleDeleteJaulaWithRelations = (jaulaId: number) => {
+    setJaulaToDelete(jaulaId);
+    setOpenDeleteJaulaWithRelationsDialog(true);
+  };
+
+  const handleGalponDeleteConfirmed = async (galponId: number) => {
+    try {
+      fetchGalpones();
+      toastService.success(
+        'Eliminación Exitosa',
+        'El galpón y todos sus elementos relacionados han sido eliminados'
+      );
+      setOpenDeleteGalponWithRelationsDialog(false);
+      setGalponToDelete(null);
+    } catch (error: any) {
+      console.error('Error al eliminar galpón con relaciones:', error);
+      toastService.error('Error al eliminar', 'No se pudo eliminar el galpón');
+    }
+  };
+
+  const handleJaulaDeleteConfirmed = async (jaulaId: number) => {
+    try {
+      if (selectedGalpon) {
+        fetchGalponDetails(selectedGalpon.id);
+      }
+      fetchGalpones();
+      toastService.success(
+        'Eliminación Exitosa',
+        'La jaula y todos sus cuyes han sido eliminados'
+      );
+      setOpenDeleteJaulaWithRelationsDialog(false);
+      setJaulaToDelete(null);
+    } catch (error: unknown) {
+      console.error('Error al eliminar jaula con relaciones:', error);
+      toastService.error('Error al eliminar', 'No se pudo eliminar la jaula');
+    }
   };
 
   if (loading && galpones.length === 0) {
@@ -582,7 +678,7 @@ const GalponesManagerFixed: React.FC = () => {
                         size="small" 
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteConfirmation.handleDeleteClick(galpon.id);
+                          handleDeleteGalponWithRelations(galpon.id);
                         }}
                         sx={{ color: theme.palette.error.main }}
                       >
@@ -723,7 +819,7 @@ const GalponesManagerFixed: React.FC = () => {
                             size="small" 
                             onClick={(e) => {
                               e.stopPropagation();
-                              jaulaDeleteConfirmation.handleDeleteClick(jaula.id);
+                              handleDeleteJaulaWithRelations(jaula.id);
                             }}
                             sx={{ color: theme.palette.error.main }}
                           >
@@ -1162,7 +1258,7 @@ const GalponesManagerFixed: React.FC = () => {
                             <Tooltip title="Eliminar">
                               <IconButton 
                                 size="small" 
-                                onClick={() => jaulaDeleteConfirmation.handleDeleteClick(jaula.id)}
+                                onClick={() => handleDeleteJaulaWithRelations(jaula.id)}
                               >
                                 <Delete fontSize="small" />
                               </IconButton>
@@ -1227,6 +1323,27 @@ const GalponesManagerFixed: React.FC = () => {
         onConfirm={jaulaDeleteConfirmation.handleConfirmDelete}
         itemName="jaula"
         loading={jaulaDeleteConfirmation.loading}
+      />
+
+      {/* Diálogos de eliminación con relaciones */}
+      <DeleteGalponWithRelationsDialog
+        open={openDeleteGalponWithRelationsDialog}
+        onClose={() => {
+          setOpenDeleteGalponWithRelationsDialog(false);
+          setGalponToDelete(null);
+        }}
+        galponId={galponToDelete}
+        onDeleteConfirmed={handleGalponDeleteConfirmed}
+      />
+
+      <DeleteJaulaWithRelationsDialog
+        open={openDeleteJaulaWithRelationsDialog}
+        onClose={() => {
+          setOpenDeleteJaulaWithRelationsDialog(false);
+          setJaulaToDelete(null);
+        }}
+        jaulaId={jaulaToDelete}
+        onDeleteConfirmed={handleJaulaDeleteConfirmed}
       />
     </Box>
   );

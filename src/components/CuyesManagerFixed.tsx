@@ -321,8 +321,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const handleDeleteWithRelationsConfirmed = async (cuyId: number) => {
     try {
       const response = await api.delete(`/cuyes/${cuyId}/eliminar-con-relaciones`);
-      if (response.data.success) {
-        const eliminados = response.data.data.eliminados;
+      if ((response.data as any).success) {
+        const eliminados = (response.data as any).data.eliminados;
         const totalEliminados = Object.values(eliminados).reduce((sum: number, count: number) => sum + count, 0);
         
         toastService.success(
@@ -347,7 +347,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     onDelete: async (id: number) => {
       try {
         const response = await api.delete(`/cuyes/${id}`);
-        if (response.data.success) {
+        if ((response.data as any).success) {
           fetchCuyes();
           fetchStats();
           // La notificación de éxito la maneja automáticamente el hook
@@ -385,7 +385,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       });
 
       const response = await api.get(`/cuyes?${params}`);
-      const data = response.data;
+      const data = (response.data as any);
 
       if (data.success) {
         setCuyes(data.data);
@@ -446,8 +446,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         response = await api.get(`/cuyes/estadisticas-jaula?${params}`);
 
         // Adaptar la respuesta al formato esperado por el componente
-        if (response.data.success) {
-          const jaulaData = response.data.data;
+        if ((response.data as any).success) {
+          const jaulaData = (response.data as any).data;
           const resumen = jaulaData.resumen;
           const distribucion = jaulaData.distribucion;
 
@@ -457,8 +457,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
           // Hacer una consulta adicional para obtener datos de sexo específicos de la jaula
           const cuyesResponse = await api.get(`/cuyes?galpon=${presetFilters.galpon}&jaula=${presetFilters.jaula}&limit=1000`);
-          if (cuyesResponse.data.success) {
-            const cuyesJaula = cuyesResponse.data.data;
+          if ((cuyesResponse.data as any).success) {
+            const cuyesJaula = (cuyesResponse.data as any).data;
             const machos = cuyesJaula.filter((c: unknown) => c.sexo === 'M').length;
             const hembras = cuyesJaula.filter((c: unknown) => c.sexo === 'H').length;
 
@@ -483,8 +483,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       } else {
         // Usar estadísticas generales
         response = await api.get('/cuyes/stats');
-        if (response.data.success) {
-          setStats(response.data.data);
+        if ((response.data as any).success) {
+          setStats((response.data as any).data);
         }
       }
     } catch (error) {
@@ -528,16 +528,16 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       console.log('📡 Enviando petición a /cuyes/estadisticas-avanzadas');
       const response = await api.get('/cuyes/estadisticas-avanzadas');
       console.log('📊 Respuesta recibida:', response.data);
-      console.log('📊 Datos específicos:', response.data.data);
-      console.log('📊 Estructura de etapas:', response.data.data?.distribucion?.etapas);
-      console.log('📊 Estructura de propósitos:', response.data.data?.distribucion?.propositos);
-      console.log('📊 Estructura de galpones:', response.data.data?.distribucion?.galpones);
+      console.log('📊 Datos específicos:', (response.data as any).data);
+      console.log('📊 Estructura de etapas:', (response.data as any).data?.distribucion?.etapas);
+      console.log('📊 Estructura de propósitos:', (response.data as any).data?.distribucion?.propositos);
+      console.log('📊 Estructura de galpones:', (response.data as any).data?.distribucion?.galpones);
 
-      if (response.data.success) {
-        setEstadisticasAvanzadas(response.data.data);
+      if ((response.data as any).success) {
+        setEstadisticasAvanzadas((response.data as any).data);
         setOpenEstadisticasDialog(true);
         console.log('✅ Diálogo de estadísticas abierto');
-        console.log('✅ Estado estadisticasAvanzadas:', response.data.data);
+        console.log('✅ Estado estadisticasAvanzadas:', (response.data as any).data);
       } else {
         console.log('❌ Respuesta no exitosa:', response.data);
         toastService.error('Error', 'No se pudieron cargar las estadísticas avanzadas');
@@ -555,8 +555,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     try {
       setLoadingHistorial(true);
       const response = await api.get(`/cuyes/${id}/historial`);
-      if (response.data.success) {
-        setHistorial(response.data.data);
+      if ((response.data as any).success) {
+        setHistorial((response.data as any).data);
         setOpenHistorialDialog(true);
       }
     } catch (error) {
@@ -570,8 +570,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const fetchGalpones = async () => {
     try {
       const response = await api.get('/galpones');
-      if (response.data.success) {
-        setGalpones(response.data.data);
+      if ((response.data as any).success) {
+        setGalpones((response.data as any).data);
       }
     } catch (error) {
       console.error('Error al obtener galpones:', error);
@@ -581,8 +581,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const fetchJaulas = async () => {
     try {
       const response = await api.get('/galpones/jaulas/todas');
-      if (response.data.success) {
-        setJaulas(response.data.data);
+      if ((response.data as any).success) {
+        setJaulas((response.data as any).data);
       }
     } catch (error) {
       console.error('Error al obtener jaulas:', error);
@@ -594,11 +594,11 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     try {
       // Obtener cuyes actuales en la jaula
       const cuyesResponse = await api.get(`/cuyes?galpon=${galponNombre}&jaula=${jaulaNombre}&limit=1000`);
-      const cuyesActuales = cuyesResponse.data.data?.length || 0;
+      const cuyesActuales = (cuyesResponse.data as any).data?.length || 0;
 
       // Obtener información fresca de la jaula directamente de la API
       const jaulasResponse = await api.get('/galpones/jaulas/todas');
-      const jaulasActualizadas = jaulasResponse.data.success ? jaulasResponse.data.data : jaulas;
+      const jaulasActualizadas = (jaulasResponse.data as any).success ? (jaulasResponse.data as any).data : jaulas;
 
       // Buscar la jaula para obtener su capacidad máxima
       const jaula = jaulasActualizadas.find(j => j.galponNombre === galponNombre && j.nombre === jaulaNombre);
@@ -625,7 +625,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const verificarCapacidadGalpon = async (galponNombre: string) => {
     try {
       const response = await api.get(`/cuyes?galpon=${galponNombre}&limit=1000`);
-      const cuyesActuales = response.data.data?.length || 0;
+      const cuyesActuales = (response.data as any).data?.length || 0;
 
       // Buscar el galpón para obtener su capacidad máxima
       const galpon = galpones.find(g => g.nombre === galponNombre);
@@ -773,12 +773,12 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       setLoading(true);
       if (editId) {
         const response = await api.put(`/cuyes/${editId}`, cuyForm);
-        if (response.data.success) {
+        if ((response.data as any).success) {
           toastService.success('Cuy actualizado', 'El cuy ha sido actualizado exitosamente');
         }
       } else {
         const response = await api.post('/cuyes', cuyForm);
-        if (response.data.success) {
+        if ((response.data as any).success) {
           toastService.success('Cuy creado', 'El cuy ha sido creado exitosamente');
         }
       }
@@ -797,7 +797,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const handleCambiarAReproductor = async (id: number) => {
     try {
       const response = await api.patch(`/cuyes/${id}/hacer-reproductor`);
-      if (response.data.success) {
+      if ((response.data as any).success) {
         toastService.success('Cambio exitoso', 'Cuy cambiado a reproductor exitosamente');
         fetchCuyes();
       }
@@ -810,7 +810,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const handleCambiarAEngorde = async (id: number) => {
     try {
       const response = await api.patch(`/cuyes/${id}/enviar-engorde`);
-      if (response.data.success) {
+      if ((response.data as any).success) {
         toastService.success('Cambio exitoso', 'Cuy enviado a engorde exitosamente');
         fetchCuyes();
       }
@@ -824,8 +824,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     try {
       setLoading(true);
       const response = await api.post('/cuyes/actualizar-etapas');
-      if (response.data.success) {
-        const { actualizados } = response.data.data;
+      if ((response.data as any).success) {
+        const { actualizados } = (response.data as any).data;
         toastService.success(
           'Etapas actualizadas',
           `Se actualizaron automáticamente ${actualizados} cuyes según su edad actual`
@@ -922,8 +922,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
             const response = await api.get(`/cuyes/${id}/verificar-relaciones`);
             return {
               id,
-              tieneRelaciones: response.data.data.relacionesEncontradas.length > 0,
-              totalRelaciones: response.data.data.relacionesEncontradas.reduce((sum, rel) => sum + rel.cantidad, 0)
+              tieneRelaciones: (response.data as any).data.relacionesEncontradas.length > 0,
+              totalRelaciones: (response.data as any).data.relacionesEncontradas.reduce((sum, rel) => sum + rel.cantidad, 0)
             };
           } catch (error) {
             return { id, tieneRelaciones: false, totalRelaciones: 0 };
@@ -977,8 +977,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
             const response = await api.delete(`/cuyes/${id}/eliminar-con-relaciones`);
             return {
               id,
-              success: response.data.success,
-              eliminados: response.data.data?.eliminados || {},
+              success: (response.data as any).success,
+              eliminados: (response.data as any).data?.eliminados || {},
               error: null
             };
           } catch (error) {
@@ -1087,7 +1087,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       for (const cuy of cuyes) {
         try {
           const response = await api.post('/cuyes', cuy);
-          if (response.data.success) {
+          if ((response.data as any).success) {
             creados++;
           } else {
             errores++;
@@ -1163,7 +1163,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         capacidadMaxima: newGalponForm.capacidadMaxima
       });
 
-      if (response.data.success) {
+      if ((response.data as any).success) {
         toastService.success('Galpón creado', 'El galpón ha sido creado exitosamente');
         setOpenNewGalponDialog(false);
         setNewGalponForm({
@@ -1209,7 +1209,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         tipo: newJaulaForm.tipo
       });
 
-      if (response.data.success) {
+      if ((response.data as any).success) {
         toastService.success('Jaula creada', 'La jaula ha sido creada exitosamente');
         setOpenNewJaulaDialog(false);
         setNewJaulaForm({
@@ -1222,8 +1222,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
         // Actualizar lista de jaulas y seleccionar la nueva
         const jaulasResponse = await api.get('/galpones/jaulas/todas');
-        if (jaulasResponse.data.success) {
-          const nuevasJaulas = jaulasResponse.data.data;
+        if ((jaulasResponse.data as any).success) {
+          const nuevasJaulas = (jaulasResponse.data as any).data;
           setJaulas(nuevasJaulas);
 
           // Filtrar jaulas del galpón actual y actualizar inmediatamente
@@ -1388,8 +1388,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
       const response = await api.post('/cuyes/jaula', registroMasivoData);
       
-      if (response.data.success) {
-        const creados = response.data.data.length;
+      if ((response.data as any).success) {
+        const creados = (response.data as any).data.length;
         toastService.success(
           'Registro Masivo Exitoso',
           `Se crearon ${creados} cuyes exitosamente en ${masiveForm.galpon}-${masiveForm.jaula}`
@@ -1398,7 +1398,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         fetchCuyes();
         fetchStats();
       } else {
-        toastService.error('Error en Registro Masivo', response.data.message || 'No se pudo crear los cuyes');
+        toastService.error('Error en Registro Masivo', (response.data as any).message || 'No se pudo crear los cuyes');
       }
     } catch (error) {
       console.error('Error en registro masivo:', error);
@@ -3123,12 +3123,12 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Ocupación actual:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {capacidadWarningData.jaula.ocupacionActual}/{capacidadWarningData.jaula.capacidadMaxima}
+                      {(capacidadWarningData.jaula as any).ocupacionActual}/{(capacidadWarningData.jaula as any).capacidadMaxima}
                     </Typography>
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={capacidadWarningData.jaula.porcentajeOcupacion}
+                    value={(capacidadWarningData.jaula as any).porcentajeOcupacion}
                     sx={{
                       height: 8,
                       borderRadius: 4,
@@ -3139,7 +3139,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                     }}
                   />
                   <Typography variant="caption" color="text.secondary">
-                    {capacidadWarningData.jaula.porcentajeOcupacion.toFixed(1)}% ocupado
+                    {(capacidadWarningData.jaula as any).porcentajeOcupacion.toFixed(1)}% ocupado
                   </Typography>
                 </Box>
 
@@ -3149,7 +3149,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Después del registro:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
-                      {capacidadWarningData.totalJaula}/{capacidadWarningData.jaula.capacidadMaxima}
+                      {capacidadWarningData.totalJaula}/{(capacidadWarningData.jaula as any).capacidadMaxima}
                     </Typography>
                   </Box>
                   <LinearProgress
@@ -3182,12 +3182,12 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Ocupación actual:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {capacidadWarningData.galpon.ocupacionActual}/{capacidadWarningData.galpon.capacidadMaxima}
+                      {(capacidadWarningData.galpon as any).ocupacionActual}/{(capacidadWarningData.galpon as any).capacidadMaxima}
                     </Typography>
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={capacidadWarningData.galpon.porcentajeOcupacion}
+                    value={(capacidadWarningData.galpon as any).porcentajeOcupacion}
                     sx={{
                       height: 8,
                       borderRadius: 4,
@@ -3198,7 +3198,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                     }}
                   />
                   <Typography variant="caption" color="text.secondary">
-                    {capacidadWarningData.galpon.porcentajeOcupacion.toFixed(1)}% ocupado
+                    {(capacidadWarningData.galpon as any).porcentajeOcupacion.toFixed(1)}% ocupado
                   </Typography>
                 </Box>
 
@@ -3208,7 +3208,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2">Después del registro:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'info.main' }}>
-                      {capacidadWarningData.totalGalpon}/{capacidadWarningData.galpon.capacidadMaxima}
+                      {capacidadWarningData.totalGalpon}/{(capacidadWarningData.galpon as any).capacidadMaxima}
                     </Typography>
                   </Box>
                   <LinearProgress

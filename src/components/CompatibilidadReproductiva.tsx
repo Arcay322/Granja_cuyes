@@ -87,10 +87,10 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
         padreId
       });
 
-      if (response.data.success) {
-        setCompatibilidad(response.data.data);
+      if ((response.data as any).success) {
+        setCompatibilidad((response.data as any).data);
       } else {
-        setError(response.data.message || 'Error al calcular compatibilidad');
+        setError((response.data as any).message || 'Error al calcular compatibilidad');
       }
     } catch (error: any) {
       console.error('Error al calcular compatibilidad:', error);

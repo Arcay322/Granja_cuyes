@@ -22,11 +22,9 @@ const initialState: NotificationState = {
   notifications: [],
   unreadCount: 0,
   config: {
-    stockAlerts: true,
-    healthReminders: true,
-    salesNotifications: true,
-    reproductiveAlerts: true,
-    systemUpdates: true,
+    enabled: true,
+    frequency: 5000,
+    types: ['stockAlerts', 'healthReminders', 'salesNotifications', 'reproductiveAlerts', 'systemUpdates']
   },
   isOpen: false,
 };

@@ -1,369 +1,261 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
-  Card, CardContent, Typography, Chip, Box, Avatar, Grid, IconButton,
-  InputAdornment, FormControl, InputLabel, Select, MenuItem, Stack,
-  Divider, Alert, CircularProgress, Tooltip
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography,
+  Box, CircularProgress, Grid, Card, CardContent, Divider, Chip,
+  List, ListItem, ListItemIcon, ListItemText, Alert, IconButton,
+  Avatar, LinearProgress, TextField, InputAdornment, Paper
 } from '../utils/mui';
 import {
-  Search, FilterList, Female, Male, Scale, LocationOn, History,
-  TrendingUp, CheckCircle, Warning, Info, Close
+  Close, Female, Male, Search, Star, TrendingUp, CheckCircle,
+  Warning, Info, Pets, Scale, CalendarMonth
 } from '@mui/icons-material';
-
-interface MotherSelectionData {
-  id: number;
-  raza: string;
-  sexo: string;
-  galpon: string;
-  jaula: string;
-  etapaVida: string;
-  peso: number;
-  fechaNacimiento: string;
-  edad: number;
-  estadoReproductivo: 'Disponible' | 'Preñada' | 'Lactando' | 'Descanso';
-  estaDisponible: boolean;
-  historialReproductivo: {
-    totalPreneces: number;
-    prenecesExitosas: number;
-    promedioLitada: number;
-    ultimaPrenez?: string;
-    tasaExito: number;
-  };
-  salud: {
-    estado: string;
-    pesoOptimo: boolean;
-  };
-}
-
-interface FatherSelectionData {
-  id: number;
-  raza: string;
-  sexo: string;
-  galpon: string;
-  jaula: string;
-  etapaVida: string;
-  peso: number;
-  fechaNacimiento: string;
-  edad: number;
-  estaDisponible: boolean;
-  rendimientoReproductivo: {
-    totalCruces: number;
-    tasaExito: number;
-    promedioDescendencia: number;
-    ultimoCruce?: string;
-    frecuenciaCruce: number;
-  };
-  genetica: {
-    linaje: string;
-    diversidadGenetica: number;
-  };
-  salud: {
-    estado: string;
-    pesoOptimo: boolean;
-  };
-}
 
 interface ReproductorSelectionDialogProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (reproductorId: number) => void;
-  type: 'madre' | 'padre';
-  title: string;
-  madres?: MotherSelectionData[];
-  padres?: FatherSelectionData[];
-  loading?: boolean;
+  onSelect: (reproductor: any) => void;
+  reproductores: any[];
+  tipo: 'madre' | 'padre';
+  loading: boolean;
 }
 
 const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
   open,
   onClose,
   onSelect,
-  type,
-  title,
-  madres = [],
-  padres = [],
-  loading = false
+  reproductores,
+  tipo,
+  loading
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRaza, setFilterRaza] = useState('');
-  const [filterGalpon, setFilterGalpon] = useState('');
-  const [sortBy, setSortBy] = useState<'edad' | 'rendimiento' | 'ubicacion'>('rendimiento');
-  const [showCompatibility, setShowCompatibility] = useState(false);
-  const [selectedForCompatibility, setSelectedForCompatibility] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<'tasaExito' | 'edad' | 'peso'>('tasaExito');
+  
+  const isMother = tipo === 'madre';
 
-  const reproductores = type === 'madre' ? madres : padres;
-
-  // Filtrar y ordenar reproductores
   const filteredReproductores = reproductores
-    .filter(r => {
-      const matchesSearch = !searchTerm || 
-        r.id.toString().includes(searchTerm) ||
-        r.raza.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        `${r.galpon}-${r.jaula}`.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesRaza = !filterRaza || r.raza === filterRaza;
-      const matchesGalpon = !filterGalpon || r.galpon === filterGalpon;
-      
-      return matchesSearch && matchesRaza && matchesGalpon;
+    .filter(reproductor => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        reproductor.raza.toLowerCase().includes(searchLower) ||
+        reproductor.galpon.toLowerCase().includes(searchLower) ||
+        reproductor.jaula.toLowerCase().includes(searchLower) ||
+        reproductor.id.toString().includes(searchLower)
+      );
     })
     .sort((a, b) => {
       switch (sortBy) {
+        case 'tasaExito':
+          const tasaA = tipo === 'madre' ? a.historialReproductivo?.tasaExito || 0 : a.rendimientoReproductivo?.tasaExito || 0;
+          const tasaB = tipo === 'madre' ? b.historialReproductivo?.tasaExito || 0 : b.rendimientoReproductivo?.tasaExito || 0;
+          return tasaB - tasaA;
         case 'edad':
           return a.edad - b.edad;
-        case 'rendimiento':
-          if (type === 'madre') {
-            const madreA = a as MotherSelectionData;
-            const madreB = b as MotherSelectionData;
-            return madreB.historialReproductivo.tasaExito - madreA.historialReproductivo.tasaExito;
-          } else {
-            const padreA = a as FatherSelectionData;
-            const padreB = b as FatherSelectionData;
-            return padreB.rendimientoReproductivo.tasaExito - padreA.rendimientoReproductivo.tasaExito;
-          }
-        case 'ubicacion':
-          return `${a.galpon}-${a.jaula}`.localeCompare(`${b.galpon}-${b.jaula}`);
+        case 'peso':
+          return b.peso - a.peso;
         default:
           return 0;
       }
     });
 
-  // Obtener opciones únicas para filtros
-  const razasUnicas = [...new Set(reproductores.map(r => r.raza))];
-  const galponesUnicos = [...new Set(reproductores.map(r => r.galpon))];
-
-  const handleSelect = (reproductorId: number) => {
-    onSelect(reproductorId);
-    onClose();
+  const getPerformanceColor = (tasa: number) => {
+    if (tasa >= 80) return 'success';
+    if (tasa >= 60) return 'warning';
+    return 'error';
   };
 
-  const renderMotherCard = (madre: MotherSelectionData) => (
-    <Card 
-      key={madre.id}
-      sx={{ 
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 3
-        },
-        border: madre.estaDisponible ? '2px solid transparent' : '2px solid #f44336',
-        opacity: madre.estaDisponible ? 1 : 0.7
-      }}
-      onClick={() => madre.estaDisponible && handleSelect(madre.id)}
-    >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar sx={{ bgcolor: '#e91e63', width: 40, height: 40 }}>
-              <Female />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="div">
-                ID: {madre.id}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {madre.raza} • {madre.etapaVida}
-              </Typography>
+  const getPerformanceLabel = (tasa: number) => {
+    if (tasa >= 80) return 'Excelente';
+    if (tasa >= 60) return 'Buena';
+    if (tasa >= 40) return 'Regular';
+    return 'Baja';
+  };
+
+  const renderReproductorCard = (reproductor: any) => {
+    const isMother = tipo === 'madre';
+    const historial = isMother ? reproductor.historialReproductivo : reproductor.rendimientoReproductivo;
+    const tasaExito = historial?.tasaExito || 0;
+    
+    return (
+      <Grid size={{ xs: 12, md: 6 }} key={reproductor.id}>
+        <Card 
+          sx={{ 
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: 4
+            }
+          }}
+          onClick={() => onSelect(reproductor)}
+        >
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ 
+                  bgcolor: isMother ? '#e91e63' : '#2196f3', 
+                  width: 40, 
+                  height: 40 
+                }}>
+                  {isMother ? <Female /> : <Male />}
+                </Avatar>
+                <Box>
+                  <Typography variant="h6">ID: {reproductor.id}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {reproductor.raza} • {reproductor.galpon}-{reproductor.jaula}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Box sx={{ textAlign: 'right' }}>
+                <Chip 
+                  label={getPerformanceLabel(tasaExito)}
+                  color={getPerformanceColor(tasaExito) as unknown}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {reproductor.estadoReproductivo || 'Disponible'}
+                </Typography>
+              </Box>
             </Box>
-          </Box>
-          <Chip 
-            label={madre.estadoReproductivo}
-            color={madre.estaDisponible ? 'success' : 'error'}
-            size="small"
-          />
-        </Box>
 
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <LocationOn fontSize="small" color="action" />
-              <Typography variant="body2">
-                {madre.galpon}-{madre.jaula}
+            {/* Información básica */}
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid size={4}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6">{reproductor.edad}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    meses
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={4}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6">{reproductor.peso.toFixed(1)}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    kg
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={4}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h6">{tasaExito.toFixed(1)}%</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    éxito
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+
+            {/* Barra de rendimiento */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Rendimiento: {tasaExito.toFixed(1)}%
               </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={tasaExito} 
+                color={getPerformanceColor(tasaExito) as unknown}
+                sx={{ height: 8, borderRadius: 4 }}
+              />
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Scale fontSize="small" color="action" />
-              <Typography variant="body2">
-                {madre.peso} kg
-                {madre.salud.pesoOptimo && (
-                  <CheckCircle fontSize="small" color="success" sx={{ ml: 0.5 }} />
-                )}
-              </Typography>
+
+            {/* Historial específico */}
+            {isMother ? (
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Historial Reproductivo:
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Preñeces:</strong> {historial?.totalPreneces || 0}
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Exitosas:</strong> {historial?.prenecesExitosas || 0}
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Prom. Litada:</strong> {historial?.promedioLitada?.toFixed(1) || '0.0'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Estado:</strong> {reproductor.estadoReproductivo}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            ) : (
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Rendimiento Reproductivo:
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Cruces:</strong> {historial?.totalCruces || 0}
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Prom. Desc.:</strong> {historial?.promedioDescendencia?.toFixed(1) || '0.0'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Diversidad:</strong> {reproductor.genetica?.diversidadGenetica || 0}%
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2">
+                      <strong>Frecuencia:</strong> {historial?.frecuenciaCruce || 0}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
+
+            {/* Indicadores de salud */}
+            <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {reproductor.salud?.pesoOptimo && (
+                <Chip 
+                  label="Peso Óptimo" 
+                  color="success" 
+                  size="small"
+                  icon={<CheckCircle />}
+                />
+              )}
+              
+              {reproductor.estaDisponible && (
+                <Chip 
+                  label="Disponible" 
+                  color="info" 
+                  size="small"
+                  icon={<Star />}
+                />
+              )}
+              
+              {tasaExito >= 80 && (
+                <Chip 
+                  label="Alto Rendimiento" 
+                  color="success" 
+                  size="small"
+                  icon={<TrendingUp />}
+                />
+              )}
             </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Typography variant="body2" color="text.secondary">
-              Edad: {madre.edad} meses
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Estado: {madre.salud.estado}
-            </Typography>
-          </Grid>
-        </Grid>
-
-        <Divider sx={{ my: 2 }} />
-
-        <Box>
-          <Typography variant="subtitle2" gutterBottom>
-            <History fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Historial Reproductivo
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{madre.historialReproductivo.totalPreneces}</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Preñeces</span>
-              </Typography>
-            </Grid>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{madre.historialReproductivo.tasaExito}%</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Éxito</span>
-              </Typography>
-            </Grid>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{madre.historialReproductivo.promedioLitada}</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Prom. Crías</span>
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
-
-        {!madre.estaDisponible && (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            No disponible: {madre.estadoReproductivo}
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  const renderFatherCard = (padre: FatherSelectionData) => (
-    <Card 
-      key={padre.id}
-      sx={{ 
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          boxShadow: 3
-        },
-        border: padre.estaDisponible ? '2px solid transparent' : '2px solid #f44336',
-        opacity: padre.estaDisponible ? 1 : 0.7
-      }}
-      onClick={() => padre.estaDisponible && handleSelect(padre.id)}
-    >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar sx={{ bgcolor: '#2196f3', width: 40, height: 40 }}>
-              <Male />
-            </Avatar>
-            <Box>
-              <Typography variant="h6" component="div">
-                ID: {padre.id}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {padre.raza} • {padre.etapaVida}
-              </Typography>
-            </Box>
-          </Box>
-          <Chip 
-            label={padre.estaDisponible ? 'Disponible' : 'No Disponible'}
-            color={padre.estaDisponible ? 'success' : 'error'}
-            size="small"
-          />
-        </Box>
-
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <LocationOn fontSize="small" color="action" />
-              <Typography variant="body2">
-                {padre.galpon}-{padre.jaula}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Scale fontSize="small" color="action" />
-              <Typography variant="body2">
-                {padre.peso} kg
-                {padre.salud.pesoOptimo && (
-                  <CheckCircle fontSize="small" color="success" sx={{ ml: 0.5 }} />
-                )}
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Typography variant="body2" color="text.secondary">
-              Edad: {padre.edad} meses
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Estado: {padre.salud.estado}
-            </Typography>
-          </Grid>
-        </Grid>
-
-        <Divider sx={{ my: 2 }} />
-
-        <Box>
-          <Typography variant="subtitle2" gutterBottom>
-            <TrendingUp fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Rendimiento Reproductivo
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{padre.rendimientoReproductivo.totalCruces}</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Cruces</span>
-              </Typography>
-            </Grid>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{padre.rendimientoReproductivo.tasaExito}%</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Éxito</span>
-              </Typography>
-            </Grid>
-            <Grid item xs={4}>
-              <Typography variant="body2" align="center">
-                <strong>{padre.rendimientoReproductivo.promedioDescendencia}</strong>
-                <br />
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Prom. Crías</span>
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
-
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            <Info fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Información Genética
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Linaje: {padre.genetica.linaje}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Diversidad: {padre.genetica.diversidadGenetica}%
-          </Typography>
-        </Box>
-
-        {!padre.estaDisponible && (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            No disponible para reproducción
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
-  );
+          </CardContent>
+        </Card>
+      </Grid>
+    );
+  };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={onClose}
       maxWidth="lg"
       fullWidth
@@ -373,7 +265,19 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
     >
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">{title}</Typography>
+          <Typography variant="h6">
+            {isMother ? (
+              <>
+                <Female sx={{ mr: 1, verticalAlign: 'middle', color: '#e91e63' }} />
+                Seleccionar Madre
+              </>
+            ) : (
+              <>
+                <Male sx={{ mr: 1, verticalAlign: 'middle', color: '#2196f3' }} />
+                Seleccionar Padre
+              </>
+            )}
+          </Typography>
           <IconButton onClick={onClose}>
             <Close />
           </IconButton>
@@ -381,13 +285,16 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
       </DialogTitle>
 
       <DialogContent>
-        {/* Filtros y búsqueda */}
-        <Box sx={{ mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box>
+            {/* Controles de búsqueda y filtrado */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
               <TextField
-                fullWidth
-                placeholder="Buscar por ID, raza o ubicación..."
+                placeholder={`Buscar ${tipo}s...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
@@ -397,84 +304,60 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                     </InputAdornment>
                   ),
                 }}
+                sx={{ minWidth: 250 }}
               />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Raza</InputLabel>
-                <Select
-                  value={filterRaza}
-                  onChange={(e) => setFilterRaza(e.target.value)}
-                  label="Raza"
-                >
-                  <MenuItem value="">Todas</MenuItem>
-                  {razasUnicas.map(raza => (
-                    <MenuItem key={raza} value={raza}>{raza}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Galpón</InputLabel>
-                <Select
-                  value={filterGalpon}
-                  onChange={(e) => setFilterGalpon(e.target.value)}
-                  label="Galpón"
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {galponesUnicos.map(galpon => (
-                    <MenuItem key={galpon} value={galpon}>{galpon}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Ordenar por</InputLabel>
-                <Select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  label="Ordenar por"
-                >
-                  <MenuItem value="rendimiento">Rendimiento</MenuItem>
-                  <MenuItem value="edad">Edad</MenuItem>
-                  <MenuItem value="ubicacion">Ubicación</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Typography variant="body2" color="text.secondary">
-                {filteredReproductores.length} disponibles
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
+              
+              <Button
+                variant={sortBy === 'tasaExito' ? 'contained' : 'outlined'}
+                onClick={() => setSortBy('tasaExito')}
+                size="small"
+              >
+                Por Rendimiento
+              </Button>
+              
+              <Button
+                variant={sortBy === 'edad' ? 'contained' : 'outlined'}
+                onClick={() => setSortBy('edad')}
+                size="small"
+              >
+                Por Edad
+              </Button>
+              
+              <Button
+                variant={sortBy === 'peso' ? 'contained' : 'outlined'}
+                onClick={() => setSortBy('peso')}
+                size="small"
+              >
+                Por Peso
+              </Button>
+            </Box>
 
-        {/* Lista de reproductores */}
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Grid container spacing={2}>
-            {filteredReproductores.length === 0 ? (
-              <Grid item xs={12}>
-                <Alert severity="info">
-                  No se encontraron {type === 'madre' ? 'madres' : 'padres'} disponibles con los filtros aplicados.
-                </Alert>
+            {/* Resumen */}
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="subtitle2">
+                📊 {filteredReproductores.length} {tipo}s disponibles
+                {searchTerm && ` (filtrado por "${searchTerm}")`}
+              </Typography>
+            </Alert>
+
+            {/* Lista de reproductores */}
+            {filteredReproductores.length > 0 ? (
+              <Grid container spacing={2}>
+                {filteredReproductores.map(renderReproductorCard)}
               </Grid>
             ) : (
-              filteredReproductores.map(reproductor => (
-                <Grid item xs={12} md={6} lg={4} key={reproductor.id}>
-                  {type === 'madre' 
-                    ? renderMotherCard(reproductor as MotherSelectionData)
-                    : renderFatherCard(reproductor as FatherSelectionData)
-                  }
-                </Grid>
-              ))
+              <Paper sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary">
+                  {searchTerm ? 'No se encontraron resultados' : `No hay ${tipo}s disponibles`}
+                </Typography>
+                {searchTerm && (
+                  <Button onClick={() => setSearchTerm('')} sx={{ mt: 2 }}>
+                    Limpiar búsqueda
+                  </Button>
+                )}
+              </Paper>
             )}
-          </Grid>
+          </Box>
         )}
       </DialogContent>
 

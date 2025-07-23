@@ -139,7 +139,7 @@ const GalponesManagerFixed: React.FC = () => {
     onDelete: async (id: number) => {
       try {
         const response = await api.delete(`/galpones/${id}`);
-        if (response.data.success) {
+        if ((response.data as any).success) {
           fetchGalpones();
           // La notificación de éxito la maneja automáticamente el hook
         }
@@ -157,7 +157,7 @@ const GalponesManagerFixed: React.FC = () => {
     onDelete: async (id: number) => {
       try {
         const response = await api.delete(`/galpones/jaulas/${id}`);
-        if (response.data.success) {
+        if ((response.data as any).success) {
           if (selectedGalpon) {
             fetchGalponDetails(selectedGalpon.id);
           }
@@ -182,7 +182,7 @@ const GalponesManagerFixed: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/galpones/resumen');
-      setGalpones(response.data.data || response.data);
+      setGalpones((response.data as any).data || response.data);
     } catch (error) {
       console.error('Error al obtener galpones:', error);
       toastService.error('Error', 'No se pudieron cargar los galpones');

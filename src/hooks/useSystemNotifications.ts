@@ -63,7 +63,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       console.log('Checking stock crítico for alimentos:', alimentos);
       
       // Filtrar solo alimentos con stock numérico válido
-      const alimentosConStockBajo = alimentos.filter((alimento: any) => {
+      const alimentosConStockBajo = (alimentos as any[]).filter((alimento: any) => {
         const stock = typeof alimento.stock === 'number' ? alimento.stock : parseFloat(alimento.stock);
         return !isNaN(stock) && stock <= config.stockCriticoThreshold;
       });
@@ -118,9 +118,9 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       const today = new Date();
       let cuyesSinVacunar = 0;
       
-      cuyes.forEach((cuy: any) => {
+      (cuyes as any[]).forEach((cuy: any) => {
         // Buscar última vacunación del cuy
-        const ultimaVacunacion = registrosSalud
+        const ultimaVacunacion = (registrosSalud as any[])
           .filter((registro: any) => 
             registro.cuyId === cuy.id && 
             registro.tipo === 'Vacunación'
@@ -184,7 +184,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       recentDate.setDate(today.getDate() - 3); // últimos 3 días para ser más específico
       
       // Buscar registros de emergencia o tratamiento recientes sin resolución
-      const cuyesEnfermos = registrosSalud.filter((registro: any) => {
+      const cuyesEnfermos = (registrosSalud as any[]).filter((registro: any) => {
         const fechaRegistro = new Date(registro.fecha);
         return (
           registro.tipo === 'Emergencia' &&
@@ -194,7 +194,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       });
       
       // Agrupar por cuy para evitar notificaciones duplicadas
-      const cuyesUnicos = [...new Set(cuyesEnfermos.map(r => r.cuyId))];
+      const cuyesUnicos = [...new Set(cuyesEnfermos.map((r: any) => r.cuyId))];
       
       if (cuyesUnicos.length > 0) {
         // Verificar si ya existe una notificación reciente (últimas 4 horas para emergencias)
@@ -233,7 +233,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       const checkDate = new Date();
       checkDate.setDate(today.getDate() + config.partoDaysAhead);
       
-      const proximosPartos = preneces.filter((prenez: any) => {
+      const proximosPartos = (preneces as any[]).filter((prenez: any) => {
         if (prenez.estado !== 'activa') return false;
         
         const fechaParto = new Date(prenez.fechaEstimadaParto);

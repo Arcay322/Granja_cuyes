@@ -76,8 +76,8 @@ model Proveedor {
   id        Int        @id @default(autoincrement())
   nombre    String
   contacto  String
-  telefono  String?
   direccion String?
+  telefono  String?
   alimentos Alimento[]
 }
 
@@ -100,8 +100,8 @@ model Cliente {
   nombre    String
   contacto  String
   direccion String
-  telefono  String?
   email     String?
+  telefono  String?
   ventas    Venta[]
 }
 
@@ -166,13 +166,13 @@ model Jaula {
 }
 
 model Prenez {
-  id                 Int      @id @default(autoincrement())
+  id                 Int       @id @default(autoincrement())
   madreId            Int
   padreId            Int?
   fechaPrenez        DateTime
   fechaProbableParto DateTime
   notas              String?
-  estado             String   @default("activa")
+  estado             String    @default("activa")
   fechaCompletada    DateTime?
   camada             Camada?
 }

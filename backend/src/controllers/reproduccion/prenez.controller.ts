@@ -47,7 +47,7 @@ export const getAll = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener preñeces', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -66,7 +66,7 @@ export const getActivas = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener preñeces activas', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -102,7 +102,7 @@ export const getById = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener preñez', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -156,7 +156,7 @@ export const create = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al crear preñez', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -207,7 +207,7 @@ export const update = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al actualizar preñez', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -234,7 +234,7 @@ export const remove = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al eliminar preñez', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -271,7 +271,7 @@ export const completar = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ 
       success: false,
       message: 'Error al completar preñez', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -299,7 +299,7 @@ export const marcarFallida = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ 
       success: false,
       message: 'Error al marcar preñez como fallida', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -327,10 +327,11 @@ export const getProximosPartos = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener próximos partos', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
+
 // Obtener estadísticas de reproducción
 export const getEstadisticas = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -345,7 +346,7 @@ export const getEstadisticas = async (req: Request, res: Response): Promise<void
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener estadísticas de reproducción', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -375,7 +376,7 @@ export const getEstadisticasAvanzadas = async (req: Request, res: Response): Pro
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener estadísticas avanzadas de reproducción', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -447,7 +448,7 @@ export const getAlertas = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener alertas de reproducción', 
-      error: error.message 
+      error: error?.message || 'Error desconocido'
     });
   }
 };
@@ -466,6 +467,158 @@ export const getAlertasEspecificas = async (req: Request, res: Response): Promis
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener alertas específicas de reproducción', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// ===== CONTROLADORES PARA SELECCIÓN DE REPRODUCTORES =====
+
+// Obtener madres disponibles para reproducción
+export const getMadresDisponibles = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const madres = await prenezService.getMadresDisponibles();
+    res.status(200).json({
+      success: true,
+      data: madres,
+      message: `${madres.length} madres disponibles para reproducción`
+    });
+  } catch (error: any) {
+    console.error('Error al obtener madres disponibles:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al obtener madres disponibles', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// Obtener padres disponibles para reproducción
+export const getPadresDisponibles = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const padres = await prenezService.getPadresDisponibles();
+    res.status(200).json({
+      success: true,
+      data: padres,
+      message: `${padres.length} padres disponibles para reproducción`
+    });
+  } catch (error: any) {
+    console.error('Error al obtener padres disponibles:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al obtener padres disponibles', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// Validar período de gestación para registro de camada
+export const validarGestacion = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { madreId, fechaRegistroCamada } = req.body;
+    
+    if (!madreId || !fechaRegistroCamada) {
+      res.status(400).json({
+        success: false,
+        message: 'Se requiere madreId y fechaRegistroCamada para validar gestación'
+      });
+      return;
+    }
+
+    const validacion = await prenezService.validarPeriodoGestacion(
+      Number(madreId), 
+      fechaRegistroCamada
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: validacion,
+      message: 'Validación de gestación completada'
+    });
+  } catch (error: any) {
+    console.error('Error al validar período de gestación:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al validar período de gestación', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// Obtener madres elegibles para registro de camada
+export const getMadresElegiblesCamada = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const madres = await prenezService.getMadresElegiblesCamada();
+    res.status(200).json({
+      success: true,
+      data: madres,
+      message: `${madres.length} madres elegibles para registro de camada`
+    });
+  } catch (error: any) {
+    console.error('Error al obtener madres elegibles para camada:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al obtener madres elegibles para camada', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// ===== CONTROLADORES PARA SISTEMA DE COMPATIBILIDAD =====
+
+// Calcular compatibilidad reproductiva entre dos reproductores
+export const calcularCompatibilidad = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { madreId, padreId } = req.body;
+    
+    if (!madreId || !padreId) {
+      res.status(400).json({
+        success: false,
+        message: 'Se requiere madreId y padreId para calcular compatibilidad'
+      });
+      return;
+    }
+
+    const compatibilidad = await prenezService.calcularCompatibilidadReproductiva(
+      Number(madreId), 
+      Number(padreId)
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: compatibilidad,
+      message: 'Compatibilidad reproductiva calculada exitosamente'
+    });
+  } catch (error: any) {
+    console.error('Error al calcular compatibilidad reproductiva:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al calcular compatibilidad reproductiva', 
+      error: error?.message || 'Error desconocido'
+    });
+  }
+};
+
+// Obtener recomendaciones de parejas reproductivas
+export const getRecomendaciones = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { madreId, padreId } = req.query;
+    
+    const recomendaciones = await prenezService.getRecomendacionesReproductivas(
+      madreId ? Number(madreId) : undefined,
+      padreId ? Number(padreId) : undefined
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: recomendaciones,
+      message: `${recomendaciones.recomendaciones.length} recomendaciones reproductivas encontradas`
+    });
+  } catch (error: any) {
+    console.error('Error al obtener recomendaciones reproductivas:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error al obtener recomendaciones reproductivas', 
       error: error?.message || 'Error desconocido'
     });
   }

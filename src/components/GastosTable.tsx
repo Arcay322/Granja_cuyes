@@ -77,7 +77,7 @@ const GastosTable = () => {
     setLoading(true);
     api.get('/gastos')
       .then(res => {
-        setGastos(res.data);
+        setGastos(res.data as Gasto[]);
         setError(null);
       })
       .catch(err => {
@@ -92,7 +92,10 @@ const GastosTable = () => {
         ];
         setGastos(fakeGastos);
       })
-      .finally(() => {
+      .then(() => {
+        setLoading(false);
+      })
+      .catch(() => {
         setLoading(false);
       });
   };
@@ -127,7 +130,7 @@ const GastosTable = () => {
     if (name === 'monto') {
       // Si el valor está vacío, mantenerlo como string vacío
       // Si tiene valor, convertir a número
-      const numericValue = value === '' ? '' : Number(value);
+      const numericValue = value === '' ? 0 : Number(value);
       setForm(prev => ({
         ...prev,
         [name]: numericValue
@@ -203,7 +206,7 @@ const GastosTable = () => {
       // Convertir campos vacíos a números antes de enviar
       const formData = {
         ...form,
-        monto: form.monto === '' ? 0 : Number(form.monto)
+        monto: typeof form.monto === 'string' && form.monto === '' ? 0 : Number(form.monto)
       };
       
       if (editId) {

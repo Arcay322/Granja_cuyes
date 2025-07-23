@@ -1,28 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, Typography, Paper, Alert, CircularProgress, 
   Container, Breadcrumbs, Link, Grid, Card, CardContent,
   Avatar, useTheme, alpha, Button
 } from '../utils/mui';
-import { Healing, MedicalServices, LocalHospital, MonitorHeart, Pets } from '@mui/icons-material';
+import { MedicalServices, LocalHospital, MonitorHeart, Pets } from '@mui/icons-material';
 import SaludTable from '../components/SaludTable';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
 import { containerFullHeight, mainCardStyles } from '../theme/SimpleLayoutStyles';
+import type { Cuy, ApiResponse } from '../types/api';
 
 const SaludPage = () => {
   const theme = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [registrosSalud, setRegistrosSalud] = useState([]);
-  const [cuyes, setCuyes] = useState([]);
+  const [cuyes, setCuyes] = useState<Cuy[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Obtenemos los cuyes para calcular estadísticas generales
         const cuyesResponse = await api.get('/cuyes');
-        setCuyes(cuyesResponse.data);
+        const cuyesData = (cuyesResponse.data as ApiResponse<Cuy[]>)?.data || (cuyesResponse.data as Cuy[]) || [];
+        setCuyes(cuyesData);
         
         // Los registros de salud requieren autenticación, 
         // pero podemos mostrar estadísticas basadas en los cuyes

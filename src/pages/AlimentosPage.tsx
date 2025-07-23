@@ -6,10 +6,11 @@ import { LocalDining, Spa, Grass, Science, Analytics, Restaurant, Inventory } fr
 import { Link as RouterLink } from 'react-router-dom';
 import { mainCardStyles } from '../theme/SimpleLayoutStyles';
 import api from '../services/api';
+import type { Alimento, ApiResponse } from '../types/api';
 
 const AlimentosPage = () => {
   const theme = useTheme();
-  const [alimentos, setAlimentos] = useState([]);
+  const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
 
@@ -17,7 +18,8 @@ const AlimentosPage = () => {
     const fetchAlimentos = async () => {
       try {
         const response = await api.get('/alimentos');
-        setAlimentos(response.data);
+        const alimentosData = (response.data as ApiResponse<Alimento[]>)?.data || (response.data as Alimento[]) || [];
+        setAlimentos(alimentosData);
       } catch (error) {
         console.error('Error al cargar alimentos:', error);
       } finally {
@@ -34,13 +36,13 @@ const AlimentosPage = () => {
   const forraje = alimentos.filter(a => 
     a.nombre.toLowerCase().includes('forraje') || 
     a.nombre.toLowerCase().includes('alfalfa') ||
-    a.descripcion.toLowerCase().includes('forraje')
+    (a.descripcion && a.descripcion.toLowerCase().includes('forraje'))
   ).reduce((total, alimento) => total + alimento.stock, 0);
   const suplementos = alimentos.filter(a => 
     a.nombre.toLowerCase().includes('suplemento') || 
     a.nombre.toLowerCase().includes('vitamina') ||
-    a.descripcion.toLowerCase().includes('suplemento') ||
-    a.descripcion.toLowerCase().includes('vitamina')
+    (a.descripcion && a.descripcion.toLowerCase().includes('suplemento')) ||
+    (a.descripcion && a.descripcion.toLowerCase().includes('vitamina'))
   ).length;
 
   const infoCards = [

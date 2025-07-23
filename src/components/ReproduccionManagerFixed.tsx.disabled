@@ -11,7 +11,7 @@ import {
   Pets, Add, Edit, Delete, Analytics, Warning, Groups, TrendingUp,
   Male, Female, Search, FilterList, Refresh, History, Close, CalendarMonth,
   Scale, LocationOn, Info, CheckCircle, ViewModule, ViewList, TableChart,
-  PregnantWoman, ChildCare, Schedule, NotificationImportant
+  PregnantWoman, ChildCare, Schedule, NotificationImportant, Favorite
 } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
@@ -19,6 +19,10 @@ import toastService from '../services/toastService';
 
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 import AlertasReproduccion from './AlertasReproduccion';
+import ReproductorSelectionDialog from './ReproductorSelectionDialog';
+import ReproductiveAnalytics from './ReproductiveAnalytics';
+import CompatibilidadReproductiva from './CompatibilidadReproductiva';
+import RecomendacionesReproductivas from './RecomendacionesReproductivas';
 
 interface ReproduccionManagerProps {
   // Props para configurar qué funcionalidades mostrar
@@ -111,6 +115,60 @@ interface Cuy {
   etapaVida: string;
   estado: string;
   fechaNacimiento: string;
+}
+
+// Interfaces para reproductores con información detallada
+interface MotherSelectionData {
+  id: number;
+  raza: string;
+  sexo: string;
+  galpon: string;
+  jaula: string;
+  etapaVida: string;
+  peso: number;
+  fechaNacimiento: string;
+  edad: number;
+  estadoReproductivo: 'Disponible' | 'Preñada' | 'Lactando' | 'Descanso';
+  estaDisponible: boolean;
+  historialReproductivo: {
+    totalPreneces: number;
+    prenecesExitosas: number;
+    promedioLitada: number;
+    ultimaPrenez?: string;
+    tasaExito: number;
+  };
+  salud: {
+    estado: string;
+    pesoOptimo: boolean;
+  };
+}
+
+interface FatherSelectionData {
+  id: number;
+  raza: string;
+  sexo: string;
+  galpon: string;
+  jaula: string;
+  etapaVida: string;
+  peso: number;
+  fechaNacimiento: string;
+  edad: number;
+  estaDisponible: boolean;
+  rendimientoReproductivo: {
+    totalCruces: number;
+    tasaExito: number;
+    promedioDescendencia: number;
+    ultimoCruce?: string;
+    frecuenciaCruce: number;
+  };
+  genetica: {
+    linaje: string;
+    diversidadGenetica: number;
+  };
+  salud: {
+    estado: string;
+    pesoOptimo: boolean;
+  };
 }
 
 interface PrenezFormData {
@@ -288,6 +346,24 @@ const ReproduccionManagerFixed: React.FC<ReproduccionManagerProps> = ({
   const [showTrasladoDialog, setShowTrasladoDialog] = useState(false);
   const [availableJaulas, setAvailableJaulas] = useState<any[]>([]);
   const [selectedNewJaula, setSelectedNewJaula] = useState<{galpon: string, jaula: string} | null>(null);
+
+  // Estados para reproductores disponibles
+  const [availableMadres, setAvailableMadres] = useState<MotherSelectionData[]>([]);
+  const [availablePadres, setAvailablePadres] = useState<FatherSelectionData[]>([]);
+  const [showMotherSelection, setShowMotherSelection] = useState(false);
+  const [showFatherSelection, setShowFatherSelection] = useState(false);
+  const [reproductorLoading, setReproductorLoading] = useState(false);
+
+  // Estados para analíticas reproductivas
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  
+  // Estados para compatibilidad reproductiva
+  const [showCompatibility, setShowCompatibility] = useState(false);
+  const [selectedMadreForCompatibility, setSelectedMadreForCompatibility] = useState<number | null>(null);
+  const [selectedPadreForCompatibility, setSelectedPadreForCompatibility] = useState<number | null>(null);
+  
+  // Estados para recomendaciones reproductivas
+  const [showRecomendaciones, setShowRecomendaciones] = useState(false);
 
   // Funciones de carga de datos
   const fetchPreneces = useCallback(async () => {
@@ -783,6 +859,502 @@ const ReproduccionManagerFixed: React.FC<ReproduccionManagerProps> = ({
     } catch (error: any) {
       console.error('Error al registrar camada:', error);
       toastService.error('Error', error.response?.data?.message || 'Error al registrar la camada');
+    }
+  };
+
+  // Funciones para cargar reproductores disponibles con información detallada
+  const fetchAvailableMadres = useCallback(async () => {
+    try {
+      setReproductorLoading(true);
+      const response = await api.get('/reproduccion/prenez/madres-disponibles');
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        toastService.error('Error', 'No se pudieron cargar las madres disponibles');
+        return [];
+      }
+    } catch (error: any) {
+      console.error('Error al obtener madres disponibles:', error);
+      toastService.error('Error', 'Error al cargar madres: ' + (error.response?.data?.message || error.message));
+      return [];
+    } finally {
+      setReproductorLoading(false);
+    }
+  }, []);
+
+  const fetchAvailablePadres = useCallback(async () => {
+    try {
+      setReproductorLoading(true);
+      const response = await api.get('/reproduccion/prenez/padres-disponibles');
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        toastService.error('Error', 'No se pudieron cargar los padres disponibles');
+        return [];
+      }
+    } catch (error: any) {
+      console.error('Error al obtener padres disponibles:', error);
+      toastService.error('Error', 'Error al cargar padres: ' + (error.response?.data?.message || error.message));
+      return [];
+    } finally {
+      setReproductorLoading(false);
+    }
+  }, []);
+
+  const fetchMadresElegiblesCamada = useCallback(async () => {
+    try {
+      const response = await api.get('/reproduccion/prenez/madres-elegibles-camada');
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        return [];
+      }
+    } catch (error: any) {
+      console.error('Error al obtener madres elegibles:', error);
+      toastService.error('Error', 'Error al cargar madres elegibles: ' + (error.response?.data?.message || error.message));
+      return [];
+    }
+  }, []);
+
+  // Funciones para manejar selección de reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
+    }
+  }; reproductores
+  const handleOpenMotherSelection = async () => {
+    const madres = await fetchAvailableMadres();
+    setAvailableMadres(madres);
+    setShowMotherSelection(true);
+  };
+
+  const handleOpenFatherSelection = async () => {
+    const padres = await fetchAvailablePadres();
+    setAvailablePadres(padres);
+    setShowFatherSelection(true);
+  };
+
+  const handleSelectMother = (madreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, madreId }));
+    setCamadaFormData(prev => ({ ...prev, madreId }));
+    setShowMotherSelection(false);
+  };
+
+  const handleSelectFather = (padreId: number) => {
+    setPrenezFormData(prev => ({ ...prev, padreId }));
+    setCamadaFormData(prev => ({ ...prev, padreId }));
+    setShowFatherSelection(false);
+  };
+
+  // Función para validar gestación en el formulario de camada
+  const validateGestacion = async (madreId: number, fechaNacimiento: string) => {
+    try {
+      const response = await api.post('/reproduccion/prenez/validar-gestacion', {
+        madreId,
+        fechaRegistroCamada: fechaNacimiento
+      });
+      
+      if (response.data.success) {
+        const validacion = response.data.data.validacion;
+        
+        if (!validacion.esValido) {
+          toastService.error('Período de Gestación Inválido', validacion.mensaje);
+          return false;
+        }
+        
+        if (validacion.tipo === 'Tardio' || validacion.tipo === 'Critico') {
+          toastService.warning('Advertencia de Gestación', validacion.mensaje);
+        }
+        
+        return true;
+      } else {
+        toastService.error('Error', response.data.message || 'Error al validar gestación');
+        return false;
+      }
+    } catch (error: unknown) {
+      console.error('Error al validar gestación:', error);
+      toastService.error('Error', 'No se pudo validar el período de gestación');
+      return false;
     }
   };
 

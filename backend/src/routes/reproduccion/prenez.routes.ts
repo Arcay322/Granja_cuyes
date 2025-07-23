@@ -15,6 +15,16 @@ router.get('/alertas-especificas', prenezController.getAlertasEspecificas);
 router.get('/activas', prenezController.getActivas);
 router.get('/proximos-partos', prenezController.getProximosPartos);
 
+// ===== RUTAS PARA SELECCIÓN DE REPRODUCTORES =====
+router.get('/madres-disponibles', prenezController.getMadresDisponibles);
+router.get('/padres-disponibles', prenezController.getPadresDisponibles);
+router.get('/madres-elegibles-camada', prenezController.getMadresElegiblesCamada);
+router.post('/validar-gestacion', prenezController.validarGestacion);
+
+// ===== RUTAS PARA SISTEMA DE COMPATIBILIDAD =====
+router.post('/calcular-compatibilidad', prenezController.calcularCompatibilidad);
+router.get('/recomendaciones', prenezController.getRecomendaciones);
+
 // ===== RUTAS PRINCIPALES =====
 router.get('/', prenezController.getAll);
 router.get('/:id', prenezController.getById);

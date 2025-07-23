@@ -1,9 +1,14 @@
 import { useNotifications } from '../contexts/NotificationContext';
 import type { Notification } from '../types/notifications';
+import type { Prenez, Alimento, Venta, Gasto, ApiResponse } from '../types/api';
 import api from './api';
 
 class NotificationService {
-  private notifications = useNotifications;
+  protected notifications: () => any;
+  
+  constructor() {
+    this.notifications = () => null;
+  }
 
   // Crear notificación toast de éxito (para acciones del usuario)
   success(title: string, message: string, category: Notification['category'] = 'system') {
@@ -55,7 +60,8 @@ class NotificationService {
       const response = await api.get('/alimentos');
       const alimentos = response.data;
       
-      const lowStockItems = alimentos.filter((item: any) => item.stock < 10);
+      const alimentosData = (alimentos as ApiResponse<Alimento[]>)?.data || (alimentos as Alimento[]) || [];
+      const lowStockItems = alimentosData.filter((item: Alimento) => item.stock < 10);
       
       lowStockItems.forEach((item: any) => {
         this.warning(
@@ -78,13 +84,14 @@ class NotificationService {
       const today = new Date();
       const inThreeDays = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
       
-      const upcomingBirths = prenezList.filter((prenez: any) => {
-        const birthDate = new Date(prenez.fechaProbableParto);
-        return birthDate >= today && birthDate <= inThreeDays && prenez.estado === 'activa';
+      const prenezData = (prenezList as ApiResponse<Prenez[]>)?.data || (prenezList as Prenez[]) || [];
+      const upcomingBirths = prenezData.filter((prenez: Prenez) => {
+        const birthDate = new Date(prenez.fechaEstimadaParto);
+        return birthDate >= today && birthDate <= inThreeDays && prenez.estado === 'Activa';
       });
 
-      upcomingBirths.forEach((prenez: any) => {
-        const daysLeft = Math.ceil((new Date(prenez.fechaProbableParto).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      upcomingBirths.forEach((prenez: Prenez) => {
+        const daysLeft = Math.ceil((new Date(prenez.fechaEstimadaParto).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         this.info(
           'Parto Próximo',
           `Preñez ID ${prenez.id} dará a luz en ${daysLeft} día${daysLeft !== 1 ? 's' : ''}`,
@@ -105,11 +112,12 @@ class NotificationService {
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
       
-      const todaysSales = ventas.filter((venta: any) => 
+      const ventasData = (ventas as ApiResponse<Venta[]>)?.data || (ventas as Venta[]) || [];
+      const todaysSales = ventasData.filter((venta: Venta) => 
         venta.fecha.startsWith(todayString) && venta.total > 500
       );
 
-      todaysSales.forEach((venta: any) => {
+      todaysSales.forEach((venta: Venta) => {
         this.success(
           'Venta Importante',
           `Venta de S/ ${venta.total.toFixed(2)} registrada hoy`,
@@ -130,14 +138,15 @@ class NotificationService {
       const today = new Date();
       const todayString = today.toISOString().split('T')[0];
       
-      const todaysExpenses = gastos.filter((gasto: any) => 
+      const gastosData = (gastos as ApiResponse<Gasto[]>)?.data || (gastos as Gasto[]) || [];
+      const todaysExpenses = gastosData.filter((gasto: Gasto) => 
         gasto.fecha.startsWith(todayString) && gasto.monto > 300
       );
 
-      todaysExpenses.forEach((gasto: any) => {
+      todaysExpenses.forEach((gasto: Gasto) => {
         this.warning(
           'Gasto Alto',
-          `${gasto.concepto}: S/ ${gasto.monto.toFixed(2)}`,
+          `${gasto.descripcion || 'Gasto'}: S/ ${gasto.monto.toFixed(2)}`,
           'system'
         );
       });
@@ -200,9 +209,11 @@ class NotificationService {
 export const useNotificationService = () => {
   const notificationContext = useNotifications();
   
-  const service = new (class extends NotificationService {
-    notifications = () => notificationContext;
-  })();
+  class NotificationServiceWithContext extends NotificationService {
+    protected notifications = () => notificationContext;
+  }
+  
+  const service = new NotificationServiceWithContext();
   
   return service;
 };

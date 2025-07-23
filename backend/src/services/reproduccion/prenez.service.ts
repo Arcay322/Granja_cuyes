@@ -422,6 +422,676 @@ export const getEstadisticasAvanzadas = async (periodo: number = 30) => {
   }
 };
 
+// ===== SERVICIOS PARA SELECCIÓN DE REPRODUCTORES =====
+
+// Obtener madres disponibles para reproducción
+export const getMadresDisponibles = async () => {
+  try {
+    // Obtener todas las hembras potencialmente reproductoras
+    const hembrasReproductoras = await prisma.cuy.findMany({
+      where: {
+        sexo: 'H',
+        estado: 'Activo',
+        etapaVida: {
+          in: ['Reproductora', 'Adulta']
+        }
+      },
+      select: {
+        id: true,
+        raza: true,
+        sexo: true,
+        galpon: true,
+        jaula: true,
+        etapaVida: true,
+        peso: true,
+        fechaNacimiento: true,
+        estado: true,
+        fechaRegistro: true
+      }
+    });
+
+    // Obtener preñeces activas para filtrar madres ocupadas
+    const prenecesActivas = await prisma.prenez.findMany({
+      where: {
+        estado: 'activa'
+      },
+      select: {
+        madreId: true,
+        fechaPrenez: true,
+        fechaProbableParto: true
+      }
+    });
+
+    // Obtener historial reproductivo de cada madre
+    const madresConHistorial = await Promise.all(
+      hembrasReproductoras.map(async (madre) => {
+        // Verificar si está actualmente preñada
+        const prenezActiva = prenecesActivas.find(p => p.madreId === madre.id);
+        
+        // Obtener historial de preñeces
+        const historialPreneces = await prisma.prenez.findMany({
+          where: { madreId: madre.id },
+          select: {
+            id: true,
+            fechaPrenez: true,
+            fechaProbableParto: true,
+            estado: true,
+            camada: {
+              select: {
+                numVivos: true,
+                numMuertos: true,
+                fechaNacimiento: true
+              }
+            }
+          },
+          orderBy: { fechaPrenez: 'desc' }
+        });
+
+        // Calcular métricas reproductivas
+        const totalPreneces = historialPreneces.length;
+        const prenecesExitosas = historialPreneces.filter(p => p.estado === 'completada').length;
+        const camadas = historialPreneces.filter(p => p.camada).map(p => p.camada!);
+        const promedioLitada = camadas.length > 0 
+          ? camadas.reduce((sum, c) => sum + c.numVivos, 0) / camadas.length 
+          : 0;
+
+        // Calcular edad en meses
+        const edadMeses = Math.floor((new Date().getTime() - new Date(madre.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30));
+
+        // Determinar estado reproductivo
+        let estadoReproductivo: 'Disponible' | 'Preñada' | 'Lactando' | 'Descanso' = 'Disponible';
+        
+        if (prenezActiva) {
+          estadoReproductivo = 'Preñada';
+        } else {
+          // Verificar si está en período de lactancia (últimos 45 días desde parto)
+          const ultimaCamada = camadas[0];
+          if (ultimaCamada) {
+            const diasDesdeParto = Math.floor((new Date().getTime() - new Date(ultimaCamada.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24));
+            if (diasDesdeParto < 45) {
+              estadoReproductivo = 'Lactando';
+            } else if (diasDesdeParto < 60) {
+              estadoReproductivo = 'Descanso';
+            }
+          }
+        }
+
+        // Solo incluir madres disponibles
+        const estaDisponible = estadoReproductivo === 'Disponible' && 
+                              edadMeses >= 3 && 
+                              edadMeses <= 24 && 
+                              madre.peso >= 0.8;
+
+        return {
+          ...madre,
+          edad: edadMeses,
+          estadoReproductivo,
+          estaDisponible,
+          historialReproductivo: {
+            totalPreneces,
+            prenecesExitosas,
+            promedioLitada: Math.round(promedioLitada * 10) / 10,
+            ultimaPrenez: historialPreneces[0]?.fechaPrenez,
+            tasaExito: totalPreneces > 0 ? Math.round((prenecesExitosas / totalPreneces) * 100) : 0
+          },
+          salud: {
+            estado: madre.estado,
+            pesoOptimo: madre.peso >= 0.8 && madre.peso <= 1.5
+          }
+        };
+      })
+    );
+
+    // Filtrar solo madres disponibles
+    const madresDisponibles = madresConHistorial.filter(madre => madre.estaDisponible);
+
+    return madresDisponibles;
+  } catch (error) {
+    console.error('Error en getMadresDisponibles:', error);
+    throw error;
+  }
+};
+
+// Obtener padres disponibles para reproducción
+export const getPadresDisponibles = async () => {
+  try {
+    // Obtener todos los machos potencialmente reproductores
+    const machosReproductores = await prisma.cuy.findMany({
+      where: {
+        sexo: 'M',
+        estado: 'Activo',
+        etapaVida: {
+          in: ['Reproductor', 'Adulto', 'Engorde']
+        }
+      },
+      select: {
+        id: true,
+        raza: true,
+        sexo: true,
+        galpon: true,
+        jaula: true,
+        etapaVida: true,
+        peso: true,
+        fechaNacimiento: true,
+        estado: true,
+        fechaRegistro: true
+      }
+    });
+
+    // Obtener historial reproductivo de cada padre
+    const padresConHistorial = await Promise.all(
+      machosReproductores.map(async (padre) => {
+        // Obtener historial como padre
+        const historialCruces = await prisma.prenez.findMany({
+          where: { padreId: padre.id },
+          select: {
+            id: true,
+            fechaPrenez: true,
+            estado: true,
+            camada: {
+              select: {
+                numVivos: true,
+                numMuertos: true,
+                fechaNacimiento: true
+              }
+            }
+          },
+          orderBy: { fechaPrenez: 'desc' }
+        });
+
+        // Calcular métricas reproductivas
+        const totalCruces = historialCruces.length;
+        const crucesExitosos = historialCruces.filter(p => p.estado === 'completada').length;
+        const camadas = historialCruces.filter(p => p.camada).map(p => p.camada!);
+        const promedioDescendencia = camadas.length > 0 
+          ? camadas.reduce((sum, c) => sum + c.numVivos, 0) / camadas.length 
+          : 0;
+
+        // Calcular edad en meses
+        const edadMeses = Math.floor((new Date().getTime() - new Date(padre.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30));
+
+        // Verificar disponibilidad (no más de 2 cruces por semana)
+        const crucesRecientes = historialCruces.filter(p => {
+          const diasDesde = Math.floor((new Date().getTime() - new Date(p.fechaPrenez).getTime()) / (1000 * 60 * 60 * 24));
+          return diasDesde <= 7;
+        });
+
+        const estaDisponible = crucesRecientes.length < 2 && 
+                              edadMeses >= 4 && 
+                              edadMeses <= 36 && 
+                              padre.peso >= 1.0;
+
+        return {
+          ...padre,
+          edad: edadMeses,
+          estaDisponible,
+          rendimientoReproductivo: {
+            totalCruces,
+            tasaExito: totalCruces > 0 ? Math.round((crucesExitosos / totalCruces) * 100) : 0,
+            promedioDescendencia: Math.round(promedioDescendencia * 10) / 10,
+            ultimoCruce: historialCruces[0]?.fechaPrenez,
+            frecuenciaCruce: totalCruces
+          },
+          genetica: {
+            linaje: padre.raza,
+            diversidadGenetica: 85 // Placeholder - se puede calcular basado en genealogía
+          },
+          salud: {
+            estado: padre.estado,
+            pesoOptimo: padre.peso >= 1.0 && padre.peso <= 2.0
+          }
+        };
+      })
+    );
+
+    // Filtrar solo padres disponibles
+    const padresDisponibles = padresConHistorial.filter(padre => padre.estaDisponible);
+
+    return padresDisponibles;
+  } catch (error) {
+    console.error('Error en getPadresDisponibles:', error);
+    throw error;
+  }
+};
+
+// Validar período de gestación para registro de camada
+export const validarPeriodoGestacion = async (madreId: number, fechaRegistroCamada: string) => {
+  try {
+    // Buscar la preñez activa de la madre
+    const prenezActiva = await prisma.prenez.findFirst({
+      where: {
+        madreId: madreId,
+        estado: 'activa'
+      },
+      orderBy: {
+        fechaPrenez: 'desc'
+      }
+    });
+
+    if (!prenezActiva) {
+      return {
+        esValido: false,
+        tipo: 'Error' as const,
+        mensaje: 'No se encontró una preñez activa para esta madre',
+        recomendaciones: ['Verificar que la madre tenga una preñez registrada', 'Registrar la preñez antes de la camada']
+      };
+    }
+
+    // Calcular días de gestación
+    const fechaPrenez = new Date(prenezActiva.fechaPrenez);
+    const fechaCamada = new Date(fechaRegistroCamada);
+    const diasGestacion = Math.floor((fechaCamada.getTime() - fechaPrenez.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Rangos de gestación
+    const rangos = {
+      minimo: 59,
+      optimo: 68,
+      maximo: 75,
+      critico: 80
+    };
+
+    let validacion;
+
+    if (diasGestacion < rangos.minimo) {
+      validacion = {
+        esValido: false,
+        tipo: 'Prematuro' as const,
+        mensaje: `Gestación muy corta (${diasGestacion} días). Mínimo requerido: ${rangos.minimo} días`,
+        recomendaciones: [
+          'Verificar la fecha de preñez registrada',
+          'Esperar al menos hasta el día 59 de gestación',
+          'Consultar con veterinario si hay signos de parto prematuro'
+        ]
+      };
+    } else if (diasGestacion <= rangos.maximo) {
+      validacion = {
+        esValido: true,
+        tipo: 'Normal' as const,
+        mensaje: `Período de gestación normal (${diasGestacion} días)`,
+        recomendaciones: [
+          'Proceder con el registro de la camada',
+          'Monitorear la salud de la madre y las crías'
+        ]
+      };
+    } else if (diasGestacion <= rangos.critico) {
+      validacion = {
+        esValido: true,
+        tipo: 'Tardio' as const,
+        mensaje: `Gestación prolongada (${diasGestacion} días). Se recomienda atención veterinaria`,
+        recomendaciones: [
+          'Proceder con precaución',
+          'Monitorear signos de complicaciones',
+          'Considerar evaluación veterinaria',
+          'Estar preparado para asistencia en el parto'
+        ]
+      };
+    } else {
+      validacion = {
+        esValido: false,
+        tipo: 'Critico' as const,
+        mensaje: `Gestación crítica (${diasGestacion} días). Requiere atención veterinaria inmediata`,
+        recomendaciones: [
+          'Contactar veterinario inmediatamente',
+          'No proceder sin supervisión profesional',
+          'Evaluar la salud de la madre',
+          'Considerar intervención médica'
+        ]
+      };
+    }
+
+    return {
+      madreId,
+      prenezId: prenezActiva.id,
+      fechaPrenez: prenezActiva.fechaPrenez,
+      fechaRegistroCamada,
+      diasGestacion,
+      validacion,
+      rangosNormales: rangos
+    };
+  } catch (error) {
+    console.error('Error en validarPeriodoGestacion:', error);
+    throw error;
+  }
+};
+
+// Obtener madres elegibles para registro de camada (con gestación apropiada)
+export const getMadresElegiblesCamada = async () => {
+  try {
+    // Obtener preñeces activas
+    const prenecesActivas = await prisma.prenez.findMany({
+      where: {
+        estado: 'activa'
+      }
+    });
+
+    // Obtener información de madres por separado
+    const madreIds = prenecesActivas.map(p => p.madreId);
+    const madres = await prisma.cuy.findMany({
+      where: { id: { in: madreIds } },
+      select: {
+        id: true,
+        raza: true,
+        galpon: true,
+        jaula: true,
+        etapaVida: true,
+        peso: true,
+        fechaNacimiento: true
+      }
+    });
+
+    // Filtrar madres con gestación apropiada (59+ días)
+    const madresElegibles = prenecesActivas
+      .map(prenez => {
+        const diasGestacion = Math.floor((new Date().getTime() - new Date(prenez.fechaPrenez).getTime()) / (1000 * 60 * 60 * 24));
+        
+        const madre = madres.find(m => m.id === prenez.madreId);
+        
+        return {
+          prenezId: prenez.id,
+          madre: madre,
+          fechaPrenez: prenez.fechaPrenez,
+          fechaProbableParto: prenez.fechaProbableParto,
+          diasGestacion,
+          esElegible: diasGestacion >= 59,
+          estadoGestacion: diasGestacion < 59 ? 'Prematuro' : 
+                          diasGestacion <= 75 ? 'Normal' : 
+                          diasGestacion <= 80 ? 'Tardio' : 'Critico'
+        };
+      })
+      .filter(item => item.esElegible);
+
+    return madresElegibles;
+  } catch (error) {
+    console.error('Error en getMadresElegiblesCamada:', error);
+    throw error;
+  }
+};
+
+// Sistema de recomendaciones y compatibilidad
+export const calcularCompatibilidadReproductiva = async (madreId: number, padreId: number) => {
+  try {
+    // Obtener información de la madre y el padre
+    const madre = await prisma.cuy.findUnique({
+      where: { id: madreId }
+    });
+
+    const padre = await prisma.cuy.findUnique({
+      where: { id: padreId }
+    });
+
+    // Obtener preñeces de la madre por separado
+    const prenecesMaternas = await prisma.prenez.findMany({
+      where: { madreId: madreId },
+      include: {
+        camada: true
+      }
+    });
+
+    // Obtener preñeces del padre por separado
+    const prenecesPaternas = await prisma.prenez.findMany({
+      where: { padreId: padreId },
+      include: {
+        camada: true
+      }
+    });
+
+    if (!madre || !padre) {
+      throw new Error('No se encontraron los reproductores especificados');
+    }
+
+    // Calcular métricas de compatibilidad
+    let compatibilityScore = 100;
+    const recomendaciones: string[] = [];
+    const advertencias: string[] = [];
+
+    // 1. Compatibilidad genética (raza)
+    if (madre.raza === padre.raza) {
+      compatibilityScore += 10;
+      recomendaciones.push('Excelente compatibilidad genética - misma raza');
+    } else {
+      compatibilityScore -= 5;
+      advertencias.push('Cruce entre razas diferentes - verificar compatibilidad');
+    }
+
+    // 2. Diferencia de edad
+    const edadMadre = Math.floor((new Date().getTime() - new Date(madre.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30));
+    const edadPadre = Math.floor((new Date().getTime() - new Date(padre.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30));
+    const diferenciaEdad = Math.abs(edadMadre - edadPadre);
+
+    if (diferenciaEdad <= 6) {
+      compatibilityScore += 5;
+      recomendaciones.push('Edades compatibles para reproducción');
+    } else if (diferenciaEdad <= 12) {
+      compatibilityScore -= 2;
+      advertencias.push('Diferencia de edad moderada');
+    } else {
+      compatibilityScore -= 10;
+      advertencias.push('Gran diferencia de edad - puede afectar la reproducción');
+    }
+
+    // 3. Historial reproductivo de la madre
+    const prenecesExitosas = prenecesMaternas.filter((p: any) => p.estado === 'completada').length;
+    const totalPreneces = prenecesMaternas.length;
+    const tasaExitoMadre = totalPreneces > 0 ? (prenecesExitosas / totalPreneces) * 100 : 0;
+
+    if (tasaExitoMadre >= 80) {
+      compatibilityScore += 15;
+      recomendaciones.push(`Madre con excelente historial reproductivo (${tasaExitoMadre.toFixed(1)}% éxito)`);
+    } else if (tasaExitoMadre >= 60) {
+      compatibilityScore += 5;
+      recomendaciones.push(`Madre con buen historial reproductivo (${tasaExitoMadre.toFixed(1)}% éxito)`);
+    } else if (totalPreneces > 0) {
+      compatibilityScore -= 10;
+      advertencias.push(`Madre con historial reproductivo bajo (${tasaExitoMadre.toFixed(1)}% éxito)`);
+    }
+
+    // 4. Historial reproductivo del padre
+    const crucesExitosos = prenecesPaternas.filter((p: any) => p.estado === 'completada').length;
+    const totalCruces = prenecesPaternas.length;
+    const tasaExitoPadre = totalCruces > 0 ? (crucesExitosos / totalCruces) * 100 : 0;
+
+    if (tasaExitoPadre >= 80) {
+      compatibilityScore += 15;
+      recomendaciones.push(`Padre con excelente historial reproductivo (${tasaExitoPadre.toFixed(1)}% éxito)`);
+    } else if (tasaExitoPadre >= 60) {
+      compatibilityScore += 5;
+      recomendaciones.push(`Padre con buen historial reproductivo (${tasaExitoPadre.toFixed(1)}% éxito)`);
+    } else if (totalCruces > 0) {
+      compatibilityScore -= 10;
+      advertencias.push(`Padre con historial reproductivo bajo (${tasaExitoPadre.toFixed(1)}% éxito)`);
+    }
+
+    // 5. Peso y condición física
+    if (madre.peso >= 0.8 && madre.peso <= 1.5) {
+      compatibilityScore += 5;
+      recomendaciones.push('Madre con peso óptimo para reproducción');
+    } else {
+      compatibilityScore -= 5;
+      advertencias.push('Peso de la madre fuera del rango óptimo');
+    }
+
+    if (padre.peso >= 1.0 && padre.peso <= 2.0) {
+      compatibilityScore += 5;
+      recomendaciones.push('Padre con peso óptimo para reproducción');
+    } else {
+      compatibilityScore -= 5;
+      advertencias.push('Peso del padre fuera del rango óptimo');
+    }
+
+    // 6. Ubicación (mismo galpón facilita el manejo)
+    if (madre.galpon === padre.galpon) {
+      compatibilityScore += 3;
+      recomendaciones.push('Reproductores en el mismo galpón - facilita el manejo');
+    }
+
+    // 7. Predicciones basadas en historial
+    const camadasMadre = prenecesMaternas.filter((p: any) => p.camada).map((p: any) => p.camada!);
+    const camadasPadre = prenecesPaternas.filter((p: any) => p.camada).map((p: any) => p.camada!);
+    
+    const promedioLitadaMadre = camadasMadre.length > 0 
+      ? camadasMadre.reduce((sum: number, c: any) => sum + c.numVivos, 0) / camadasMadre.length 
+      : 2.5; // Promedio típico
+
+    const promedioLitadaPadre = camadasPadre.length > 0 
+      ? camadasPadre.reduce((sum: number, c: any) => sum + c.numVivos, 0) / camadasPadre.length 
+      : 2.5; // Promedio típico
+
+    const prediccionLitada = Math.round((promedioLitadaMadre + promedioLitadaPadre) / 2);
+
+    // Normalizar score (0-100)
+    compatibilityScore = Math.max(0, Math.min(100, compatibilityScore));
+
+    // Determinar nivel de compatibilidad
+    let nivelCompatibilidad: 'Excelente' | 'Buena' | 'Regular' | 'Baja';
+    if (compatibilityScore >= 85) {
+      nivelCompatibilidad = 'Excelente';
+    } else if (compatibilityScore >= 70) {
+      nivelCompatibilidad = 'Buena';
+    } else if (compatibilityScore >= 55) {
+      nivelCompatibilidad = 'Regular';
+    } else {
+      nivelCompatibilidad = 'Baja';
+    }
+
+    return {
+      compatibilityScore,
+      nivelCompatibilidad,
+      recomendaciones,
+      advertencias,
+      predicciones: {
+        litadaEsperada: prediccionLitada,
+        tasaExitoEstimada: Math.round((tasaExitoMadre + tasaExitoPadre) / 2),
+        tiempoGestacionEstimado: 68 // días promedio
+      },
+      detalles: {
+        madre: {
+          id: madre.id,
+          raza: madre.raza,
+          edad: edadMadre,
+          peso: madre.peso,
+          historial: {
+            totalPreneces,
+            prenecesExitosas,
+            tasaExito: tasaExitoMadre,
+            promedioLitada: promedioLitadaMadre
+          }
+        },
+        padre: {
+          id: padre.id,
+          raza: padre.raza,
+          edad: edadPadre,
+          peso: padre.peso,
+          historial: {
+            totalCruces,
+            crucesExitosos,
+            tasaExito: tasaExitoPadre,
+            promedioLitada: promedioLitadaPadre
+          }
+        }
+      }
+    };
+  } catch (error) {
+    console.error('Error en calcularCompatibilidadReproductiva:', error);
+    throw error;
+  }
+};
+
+// Obtener recomendaciones de parejas reproductivas
+export const getRecomendacionesReproductivas = async (madreId?: number, padreId?: number) => {
+  try {
+    let madresDisponibles: any[] = [];
+    let padresDisponibles: any[] = [];
+
+    if (!madreId) {
+      madresDisponibles = await getMadresDisponibles();
+    }
+
+    if (!padreId) {
+      padresDisponibles = await getPadresDisponibles();
+    }
+
+    const recomendaciones: any[] = [];
+
+    // Si se especifica una madre, encontrar los mejores padres
+    if (madreId && !padreId) {
+      for (const padre of padresDisponibles.slice(0, 5)) { // Top 5 padres
+        try {
+          const compatibilidad = await calcularCompatibilidadReproductiva(madreId, padre.id);
+          recomendaciones.push({
+            tipo: 'padre_para_madre',
+            madreId,
+            padreId: padre.id,
+            compatibilidad
+          });
+        } catch (error) {
+          console.error(`Error calculando compatibilidad para padre ${padre.id}:`, error);
+        }
+      }
+    }
+
+    // Si se especifica un padre, encontrar las mejores madres
+    if (padreId && !madreId) {
+      for (const madre of madresDisponibles.slice(0, 5)) { // Top 5 madres
+        try {
+          const compatibilidad = await calcularCompatibilidadReproductiva(madre.id, padreId);
+          recomendaciones.push({
+            tipo: 'madre_para_padre',
+            madreId: madre.id,
+            padreId,
+            compatibilidad
+          });
+        } catch (error) {
+          console.error(`Error calculando compatibilidad para madre ${madre.id}:`, error);
+        }
+      }
+    }
+
+    // Si no se especifica ninguno, encontrar las mejores parejas generales
+    if (!madreId && !padreId) {
+      const mejoresParejas: unknown[] = [];
+      
+      for (const madre of madresDisponibles.slice(0, 3)) {
+        for (const padre of padresDisponibles.slice(0, 3)) {
+          try {
+            const compatibilidad = await calcularCompatibilidadReproductiva(madre.id, padre.id);
+            mejoresParejas.push({
+              tipo: 'pareja_recomendada',
+              madreId: madre.id,
+              padreId: padre.id,
+              compatibilidad
+            });
+          } catch (error) {
+            console.error(`Error calculando compatibilidad para pareja ${madre.id}-${padre.id}:`, error);
+          }
+        }
+      }
+
+      // Ordenar por score de compatibilidad y tomar las mejores
+      mejoresParejas.sort((a: any, b: any) => {
+        return b.compatibilidad.compatibilityScore - a.compatibilidad.compatibilityScore;
+      });
+      recomendaciones.push(...mejoresParejas.slice(0, 5));
+    }
+
+    // Ordenar recomendaciones por score de compatibilidad
+    recomendaciones.sort((a, b) => b.compatibilidad.compatibilityScore - a.compatibilidad.compatibilityScore);
+
+    return {
+      recomendaciones,
+      resumen: {
+        total: recomendaciones.length,
+        excelentes: recomendaciones.filter(r => r.compatibilidad.nivelCompatibilidad === 'Excelente').length,
+        buenas: recomendaciones.filter(r => r.compatibilidad.nivelCompatibilidad === 'Buena').length,
+        regulares: recomendaciones.filter(r => r.compatibilidad.nivelCompatibilidad === 'Regular').length,
+        bajas: recomendaciones.filter(r => r.compatibilidad.nivelCompatibilidad === 'Baja').length
+      }
+    };
+  } catch (error) {
+    console.error('Error en getRecomendacionesReproductivas:', error);
+    throw error;
+  }
+};
+
 // Sistema de alertas específicas
 export const getAlertasEspecificas = async () => {
   try {

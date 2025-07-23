@@ -3,7 +3,6 @@ import {
   Box, Typography, Breadcrumbs, Link, Container, Paper, Card, CardContent, 
   Avatar, Alert, useTheme, alpha
 } from '../utils/mui';
-import { DataStateRenderer, ConditionalRender } from '../utils/conditional-render';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -23,6 +22,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import PetsIcon from '@mui/icons-material/Pets';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import api from '../services/api';
+import type { Cuy, Venta, Gasto, ApiResponse } from '../types/api';
 
 // Register Chart.js components
 ChartJS.register(
@@ -40,9 +40,9 @@ ChartJS.register(
 const DashboardPage: React.FC = () => {
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
-  const [cuyes, setCuyes] = useState([]);
-  const [ventas, setVentas] = useState([]);
-  const [gastos, setGastos] = useState([]);
+  const [cuyes, setCuyes] = useState<Cuy[]>([]);
+  const [ventas, setVentas] = useState<Venta[]>([]);
+  const [gastos, setGastos] = useState<Gasto[]>([]);
   const [error, setError] = useState('');
   
   useEffect(() => {
@@ -55,9 +55,13 @@ const DashboardPage: React.FC = () => {
         ]);
         
         // Manejar el formato de respuesta mejorado {success, data, message}
-        setCuyes(cuyesRes.data?.data || cuyesRes.data || []);
-        setVentas(ventasRes.data?.data || ventasRes.data || []);
-        setGastos(gastosRes.data?.data || gastosRes.data || []);
+        const cuyesData = (cuyesRes.data as ApiResponse<Cuy[]>)?.data || (cuyesRes.data as Cuy[]) || [];
+        const ventasData = (ventasRes.data as ApiResponse<Venta[]>)?.data || (ventasRes.data as Venta[]) || [];
+        const gastosData = (gastosRes.data as ApiResponse<Gasto[]>)?.data || (gastosRes.data as Gasto[]) || [];
+        
+        setCuyes(cuyesData);
+        setVentas(ventasData);
+        setGastos(gastosData);
         setLoading(false);
       } catch (err) {
         console.error('Error al cargar datos del dashboard:', err);

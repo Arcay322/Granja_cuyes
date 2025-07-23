@@ -88,8 +88,9 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
             type: 'warning',
             category: 'stock',
             title: 'Stock crítico de alimento',
-            message: `El alimento "${alimento.nombre}" está por debajo del nivel mínimo (${alimento.stock}${alimento.unidad} restantes)`,
+            message: `El alimento "${alimento.nombre}" está por debajo del nivel mínimo (${alimento.stock} restantes)`,
             priority: 'high',
+            date: new Date().toISOString(),
           });
         } else {
           console.log('Stock notification already exists for:', alimento.nombre, 'expires in:', Math.round((8 * 60 * 60 * 1000 - (Date.now() - existingNotification.timestamp.getTime())) / (60 * 1000)), 'minutes');
@@ -161,6 +162,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
             title: 'Vacunación pendiente',
             message: `Hay ${cuyesSinVacunar} cuyes que necesitan vacunación pronto`,
             priority: 'medium',
+            date: new Date().toISOString(),
           });
         } else {
           console.log('Vacunación notification already exists, expires in:', Math.round((8 * 60 * 60 * 1000 - (Date.now() - existingNotification.timestamp.getTime())) / (60 * 1000)), 'minutes');
@@ -210,6 +212,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
             title: 'Cuyes con emergencias',
             message: `${cuyesUnicos.length} cuy${cuyesUnicos.length !== 1 ? 'es' : ''} con emergencias médicas recientes`,
             priority: 'high',
+            date: new Date().toISOString(),
           });
         } else {
           console.log('Cuyes enfermos notification already exists, expires in:', Math.round((4 * 60 * 60 * 1000 - (Date.now() - existingNotification.timestamp.getTime())) / (60 * 1000)), 'minutes');
@@ -233,7 +236,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
       const proximosPartos = preneces.filter((prenez: any) => {
         if (prenez.estado !== 'activa') return false;
         
-        const fechaParto = new Date(prenez.fechaProbableParto);
+        const fechaParto = new Date(prenez.fechaEstimadaParto);
         return fechaParto <= checkDate && fechaParto >= today;
       });
       
@@ -247,7 +250,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
         );
         
         if (!existingNotification) {
-          const fechaParto = new Date(prenez.fechaProbableParto);
+          const fechaParto = new Date(prenez.fechaEstimadaParto);
           const diasRestantes = Math.ceil((fechaParto.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
           
           console.log('Adding parto notification for madre:', prenez.madreId);
@@ -257,6 +260,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
             title: 'Próximo parto',
             message: `La madre #${prenez.madreId} tiene parto previsto en ${diasRestantes} día${diasRestantes !== 1 ? 's' : ''}`,
             priority: 'medium',
+            date: new Date().toISOString(),
           });
         } else {
           console.log('Parto notification already exists for madre:', prenez.madreId, 'expires in:', Math.round((12 * 60 * 60 * 1000 - (Date.now() - existingNotification.timestamp.getTime())) / (60 * 1000)), 'minutes');
@@ -347,7 +351,8 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
         console.log('=== NOTIFICATION STATISTICS ===');
         console.log('Total notifications:', notifications.length);
         console.log('By category:', notifications.reduce((acc, n) => {
-          acc[n.category] = (acc[n.category] || 0) + 1;
+          const category = n.category || 'unknown';
+          acc[category] = (acc[category] || 0) + 1;
           return acc;
         }, {} as Record<string, number>));
         console.log('By age:');

@@ -194,7 +194,8 @@ const GalponesManagerFixed: React.FC = () => {
   const fetchGalponDetails = async (id: number) => {
     try {
       const response = await api.get(`/galpones/${id}`);
-      setSelectedGalpon(response.data.data || response.data);
+      const data = response.data as any;
+      setSelectedGalpon(data.data || data);
     } catch (error) {
       console.error('Error al obtener detalles del galpón:', error);
       toastService.error('Error', 'No se pudieron cargar los detalles del galpón');
@@ -249,7 +250,8 @@ const GalponesManagerFixed: React.FC = () => {
     try {
       // Obtener las jaulas del galpón para mostrar en las estadísticas
       const response = await api.get(`/galpones/${galpon.nombre}/jaulas`);
-      const jaulas = response.data.data || response.data;
+      const data = response.data as any;
+      const jaulas = data.data || data;
       
       // Usar los datos del resumen que ya tenemos (más precisos) y agregar las jaulas
       setSelectedGalpon({
@@ -359,7 +361,7 @@ const GalponesManagerFixed: React.FC = () => {
       }
       setOpenGalponDialog(false);
       fetchGalpones();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error al guardar galpón:', error);
       const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo guardar el galpón';
       toastService.error('Error al guardar', errorMsg);
@@ -401,7 +403,7 @@ const GalponesManagerFixed: React.FC = () => {
       if (selectedGalpon) {
         fetchGalponDetails(selectedGalpon.id);
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error al guardar jaula:', error);
       const errorMsg = error.response?.data?.message || error.response?.data?.error || 'No se pudo guardar la jaula';
       toastService.error('Error al guardar', errorMsg);
@@ -424,7 +426,8 @@ const GalponesManagerFixed: React.FC = () => {
       
       // Obtener jaulas del galpón
       const response = await api.get(`/galpones/${galpon.nombre}/jaulas`);
-      const jaulas = response.data.data || response.data;
+      const data = response.data as any;
+      const jaulas = data.data || data;
       setJaulasDelGalpon(jaulas);
       
       setCurrentView('jaulas');
@@ -443,7 +446,8 @@ const GalponesManagerFixed: React.FC = () => {
       
       // Obtener cuyes de la jaula específica con filtros aplicados en el backend
       const response = await api.get(`/cuyes?galpon=${jaula.galponNombre}&jaula=${jaula.nombre}&limit=1000`);
-      const cuyes = response.data.data || [];
+      const data = response.data as any;
+      const cuyes = data.data || [];
       setJaulasCuyes(cuyes);
       
       setCurrentView('cuyes');
@@ -708,7 +712,7 @@ const GalponesManagerFixed: React.FC = () => {
                   <LinearProgress
                     variant="determinate"
                     value={Math.min(galpon.porcentajeOcupacion || 0, 100)}
-                    color={getOcupacionColor(galpon.porcentajeOcupacion || 0) as unknown}
+                    color={getOcupacionColor(galpon.porcentajeOcupacion || 0) as 'error' | 'warning' | 'success'}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
                 </Box>
@@ -889,16 +893,16 @@ const GalponesManagerFixed: React.FC = () => {
                     </Box>
 
                     {/* Alertas */}
-                    {(jaula.ocupacion?.porcentajeOcupacion >= 100 || jaula.ocupacion?.cuyesEnfermos > 0) && (
+                    {((jaula.ocupacion?.porcentajeOcupacion || 0) >= 100 || (jaula.ocupacion?.cuyesEnfermos || 0) > 0) && (
                       <Alert 
-                        severity={jaula.ocupacion?.porcentajeOcupacion >= 100 ? 'error' : 'warning'} 
+                        severity={(jaula.ocupacion?.porcentajeOcupacion || 0) >= 100 ? 'error' : 'warning'} 
                         sx={{ mb: 2, py: 0 }}
                       >
-                        {jaula.ocupacion?.porcentajeOcupacion >= 100 && (
+                        {(jaula.ocupacion?.porcentajeOcupacion || 0) >= 100 && (
                           <div>⚠️ Jaula llena</div>
                         )}
-                        {jaula.ocupacion?.cuyesEnfermos > 0 && (
-                          <div>🏥 {jaula.ocupacion.cuyesEnfermos} cuyes enfermos</div>
+                        {(jaula.ocupacion?.cuyesEnfermos || 0) > 0 && (
+                          <div>🏥 {jaula.ocupacion?.cuyesEnfermos || 0} cuyes enfermos</div>
                         )}
                       </Alert>
                     )}
@@ -1052,7 +1056,7 @@ const GalponesManagerFixed: React.FC = () => {
                 <Select
                   name="estado"
                   value={galponForm.estado}
-                  onChange={handleGalponChange}
+                  onChange={(e) => handleGalponChange(e as any)}
                   label="Estado"
                 >
                   {estadoOptions.map(option => (
@@ -1137,7 +1141,7 @@ const GalponesManagerFixed: React.FC = () => {
                 <Select
                   name="tipo"
                   value={jaulaForm.tipo}
-                  onChange={handleJaulaChange}
+                  onChange={(e) => handleJaulaChange(e as any)}
                   label="Tipo"
                 >
                   {tipoJaulaOptions.map(option => (
@@ -1150,7 +1154,7 @@ const GalponesManagerFixed: React.FC = () => {
                 <Select
                   name="estado"
                   value={jaulaForm.estado}
-                  onChange={handleJaulaChange}
+                  onChange={(e) => handleJaulaChange(e as any)}
                   label="Estado"
                 >
                   {estadoOptions.map(option => (

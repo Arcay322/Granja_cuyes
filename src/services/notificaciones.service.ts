@@ -1,4 +1,5 @@
 import api from './api';
+import type { Prenez, ApiResponse } from '../types/api';
 
 // Servicio específico para notificaciones de preñez
 export const notificacionesService = {
@@ -21,8 +22,9 @@ export const notificacionesService = {
       const hoy = new Date();
       
       // Filtrar las preñeces cuya fecha probable de parto ya pasó
-      const partosVencidos = response.data.filter((prenez: any) => {
-        const fechaParto = new Date(prenez.fechaProbableParto);
+      const prenezData = (response.data as ApiResponse<Prenez[]>)?.data || (response.data as Prenez[]) || [];
+      const partosVencidos = prenezData.filter((prenez: Prenez) => {
+        const fechaParto = new Date(prenez.fechaEstimadaParto);
         return fechaParto < hoy;
       });
       

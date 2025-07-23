@@ -44,7 +44,7 @@ export const RenderSwitch: React.FC<{
   for (const child of childrenArray) {
     if (React.isValidElement(child)) {
       // Si es un RenderCase y su condición es true, renderizarlo
-      if (child.type === RenderCase && child.props.condition) {
+      if (child.type === RenderCase && (child.props as any)?.condition) {
         return child;
       }
       // Si es un RenderDefault, guardarlo para el final

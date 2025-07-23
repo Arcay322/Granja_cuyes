@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Breadcrumbs, Link } from '../../utils/mui';
 import { Link as RouterLink } from 'react-router-dom';
 import { Home, NavigateNext } from '@mui/icons-material';
-import ReproduccionManagerFixed from '../../components/ReproduccionManagerFixed';
+// import ReproduccionManagerFixed from '../../components/ReproduccionManagerFixed';
 
 const ReproduccionPage: React.FC = () => {
   return (
@@ -36,7 +36,11 @@ const ReproduccionPage: React.FC = () => {
       </Breadcrumbs>
       
       {/* Componente principal */}
-      <ReproduccionManagerFixed />
+      {/* <ReproduccionManagerFixed /> */}
+      <Typography variant="h4">Módulo de Reproducción</Typography>
+      <Typography variant="body1" sx={{ mt: 2 }}>
+        El módulo de reproducción está temporalmente deshabilitado mientras se corrigen errores de TypeScript.
+      </Typography>
     </Box>
   );
 };

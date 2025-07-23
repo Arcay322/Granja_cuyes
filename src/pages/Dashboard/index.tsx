@@ -18,11 +18,11 @@ const Dashboard = () => {
     inventarioValor: 0,
     rentabilidad: 0
   });
-  const [populationData, setPopulationData] = useState([]);
-  const [ventasData, setVentasData] = useState([]);
-  const [gastosData, setGastosData] = useState([]);
-  const [productivityData, setProductivityData] = useState([]);
-  const [error, setError] = useState(null);
+  const [populationData, setPopulationData] = useState<any[]>([]);
+  const [ventasData, setVentasData] = useState<any[]>([]);
+  const [gastosData, setGastosData] = useState<any[]>([]);
+  const [productivityData, setProductivityData] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -37,11 +37,11 @@ const Dashboard = () => {
           api.get('/dashboard/productividad')
         ]);
         
-        setMetrics(metricsRes.data);
-        setPopulationData(populationRes.data);
-        setVentasData(ventasRes.data);
-        setGastosData(gastosRes.data);
-        setProductivityData(productivityRes.data);
+        setMetrics((metricsRes.data as any) || {});
+        setPopulationData((populationRes.data as any[]) || []);
+        setVentasData((ventasRes.data as any[]) || []);
+        setGastosData((gastosRes.data as any[]) || []);
+        setProductivityData((productivityRes.data as any[]) || []);
       } catch (err) {
         console.error('Error cargando datos del dashboard:', err);
         setError('No se pudieron cargar los datos del dashboard. Por favor intenta más tarde.');
@@ -54,7 +54,13 @@ const Dashboard = () => {
   }, []);
 
   // Tarjeta de métrica individual
-  const MetricCard = ({ title, value, unit = '', icon, color = '#0088FE' }) => (
+  const MetricCard = ({ title, value, unit = '', icon, color = '#0088FE' }: {
+    title: string;
+    value: number | string;
+    unit?: string;
+    icon: React.ReactNode;
+    color?: string;
+  }) => (
     <Card sx={{ height: '100%', boxShadow: 2 }}>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -224,7 +230,7 @@ const Dashboard = () => {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="valor"

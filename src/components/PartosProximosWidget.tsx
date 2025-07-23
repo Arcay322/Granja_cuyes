@@ -25,7 +25,7 @@ const PartosProximosWidget = () => {
         try {
           const response = await api.get('/reproduccion/prenez/proximos-partos?dias=15');
           if (response && response.data) {
-            setProximosPartos(response.data);
+            setProximosPartos(response.data as any[]);
           } else {
             // Si no hay datos, mostrar datos de ejemplo
             console.log('No se obtuvieron datos reales, usando datos de ejemplo');

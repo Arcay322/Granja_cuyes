@@ -1,5 +1,5 @@
 // Estilos compartidos para el layout de las páginas
-import { Theme } from '@mui/material/styles';
+// import type { Theme } from '@mui/material/styles';
 
 // Definición de tipos sin importar SxProps
 type SxStyles = Record<string, any>;

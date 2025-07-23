@@ -1,26 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, Typography, Paper, Alert, CircularProgress, 
   Container, Breadcrumbs, Link, Grid, Card, CardContent,
   Avatar, useTheme, alpha, Button
 } from '../utils/mui';
-import { ShoppingCart, TrendingUp, PeopleAlt, MonetizationOn, AttachMoney } from '@mui/icons-material';
+import { ShoppingCart, TrendingUp, PeopleAlt, MonetizationOn } from '@mui/icons-material';
 import VentasTable from '../components/VentasTable';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
 import { containerFullHeight, mainCardStyles } from '../theme/SimpleLayoutStyles';
+import type { Venta, ApiResponse } from '../types/api';
 
 const VentasPage = () => {
   const theme = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [ventas, setVentas] = useState([]);
+  const [ventas, setVentas] = useState<Venta[]>([]);
 
   useEffect(() => {
     const fetchVentas = async () => {
       try {
         const response = await api.get('/ventas');
-        setVentas(response.data);
+        const ventasData = (response.data as ApiResponse<Venta[]>)?.data || (response.data as Venta[]) || [];
+        setVentas(ventasData);
       } catch (error) {
         console.error('Error al cargar ventas:', error);
         setError('Error al cargar las ventas');

@@ -1,21 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography, Breadcrumbs, Link, Paper, Container, Grid, Card, CardContent, IconButton, Avatar, useTheme, alpha } from "../utils/mui";
+import { useEffect, useState } from 'react';
+import { Box, Typography, Breadcrumbs, Link, Paper, Container, Grid, Card, CardContent, Avatar, useTheme, alpha } from "../utils/mui";
 import GastosTable from '../components/GastosTable';
-import { MonetizationOn, AttachMoney, Inventory, Receipt, Assessment, ArrowDownward, ArrowUpward } from '@mui/icons-material';
+import { MonetizationOn, Inventory, Receipt, ArrowDownward, ArrowUpward } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import { mainCardStyles } from '../theme/SimpleLayoutStyles';
 import api from '../services/api';
+import type { Gasto, ApiResponse } from '../types/api';
 
 const GastosPage = () => {
   const theme = useTheme();
-  const [gastos, setGastos] = useState([]);
+  const [gastos, setGastos] = useState<Gasto[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchGastos = async () => {
       try {
         const response = await api.get('/gastos');
-        setGastos(response.data);
+        const gastosData = (response.data as ApiResponse<Gasto[]>)?.data || (response.data as Gasto[]) || [];
+        setGastos(gastosData);
       } catch (error) {
         console.error('Error al cargar gastos:', error);
       } finally {
@@ -38,7 +40,7 @@ const GastosPage = () => {
   const promedioGastoDiario = totalGastosDelMes / (new Date().getDate() || 1);
   
   // Agrupar por categorías
-  const gastosPorCategoria = gastos.reduce((acc, gasto) => {
+  const gastosPorCategoria = gastos.reduce((acc: Record<string, number>, gasto) => {
     acc[gasto.categoria] = (acc[gasto.categoria] || 0) + gasto.monto;
     return acc;
   }, {});
@@ -59,7 +61,7 @@ const GastosPage = () => {
     {
       title: 'Gasto promedio diario',
       value: loading ? '...' : `S/. ${promedioGastoDiario.toFixed(2)}`,
-      icon: <AttachMoney />,
+      icon: <MonetizationOn />,
       color: theme.palette.warning.main,
       change: '',
       changeDirection: 'up',

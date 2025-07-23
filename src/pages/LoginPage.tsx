@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  TextField, Button, Box, Typography, Alert, Paper, Container, 
+  TextField, Button, Box, Typography, Alert, Container, 
   Avatar, InputAdornment, IconButton, Card, CardContent, Grid,
   Checkbox, FormControlLabel, Divider, useTheme, alpha, CircularProgress
 } from '../utils/mui';
 import { 
-  Visibility, VisibilityOff, Email, Lock, Pets,
-  LoginOutlined, ArrowForward, ArrowBack
+  Visibility, VisibilityOff, Email, Lock,
+  LoginOutlined, ArrowForward
 } from '@mui/icons-material';
 import axios from '../services/api';
 import cuyLogo from '../assets/cuy-logo.png';
@@ -44,7 +44,7 @@ const LoginPage: React.FC = () => {
       const res = await axios.post('/auth/login', { email, password });
       
       // Guardar el token según la preferencia del usuario
-      const token = res.data.token;
+      const token = (res.data as any).token;
       if (rememberMe) {
         localStorage.setItem('token', token);
       } else {
@@ -171,7 +171,7 @@ const LoginPage: React.FC = () => {
                   textAlign: 'center'
                 }}>
                   <Typography variant="h4" color="white" fontWeight={700}>100%</Typography>
-                  <Typography variant="body2" color="white" opacity={0.8}>Gestión Eficiente</Typography>
+                  <Typography variant="body2" sx={{ color: 'white', opacity: 0.8 }}>Gestión Eficiente</Typography>
                 </Box>
                 <Box sx={{ 
                   bgcolor: 'rgba(255,255,255,0.1)', 
@@ -184,7 +184,7 @@ const LoginPage: React.FC = () => {
                   textAlign: 'center'
                 }}>
                   <Typography variant="h4" color="white" fontWeight={700}>24/7</Typography>
-                  <Typography variant="body2" color="white" opacity={0.8}>Acceso Seguro</Typography>
+                  <Typography variant="body2" sx={{ color: 'white', opacity: 0.8 }}>Acceso Seguro</Typography>
                 </Box>
               </Box>
             </Box>

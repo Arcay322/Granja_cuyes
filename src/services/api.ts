@@ -12,7 +12,7 @@ const getToken = () => {
 // Agregar el token a todas las solicitudes
 api.interceptors.request.use((config) => {
   const token = getToken();
-  if (token) {
+  if (token && config.headers) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
   return config;

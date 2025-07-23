@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Container, Typography, Box, Breadcrumbs, Link
+  Container, Typography, Breadcrumbs, Link
 } from '../utils/mui';
 import { Home, NavigateNext } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';

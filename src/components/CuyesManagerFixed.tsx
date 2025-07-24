@@ -246,6 +246,8 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const [galpones, setGalpones] = useState<Array<{ id: number, nombre: string }>>([]);
   const [jaulas, setJaulas] = useState<Array<{ id: number, nombre: string, galponNombre: string, capacidadMaxima?: number }>>([]);
   const [jaulasDisponibles, setJaulasDisponibles] = useState<Array<{ id: number, nombre: string, galponNombre: string, capacidadMaxima?: number, ocupacionActual?: number }>>([]);
+  // Estado separado para el registro masivo
+  const [jaulasDisponiblesMasivo, setJaulasDisponiblesMasivo] = useState<Array<{ id: number, nombre: string, galponNombre: string, capacidadMaxima?: number, ocupacionActual?: number }>>([]);
 
   // Estados para crear nuevos galpones y jaulas
   const [openNewGalponDialog, setOpenNewGalponDialog] = useState(false);
@@ -767,7 +769,13 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   };
 
   const handleSubmitCuy = async () => {
-    if (!validateCuyForm()) return;
+
+    console.log('[DEBUG] handleSubmitCuy ejecutado');
+    if (!validateCuyForm()) {
+      toastService.error('Error', 'Formulario inválido. Revisa los campos obligatorios.');
+      console.warn('[DEBUG] Validación fallida en handleSubmitCuy', cuyForm);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -1144,7 +1152,11 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   const handleNewJaulaChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
     const { name, value } = e.target;
     if (name) {
-      setNewJaulaForm(prev => ({ ...prev, [name]: value }));
+      if (name === 'capacidadMaxima') {
+        setNewJaulaForm(prev => ({ ...prev, [name]: value === '' ? '' : Number(value) }));
+      } else {
+        setNewJaulaForm(prev => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -1200,10 +1212,14 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
     setCreatingJaula(true);
     try {
+      // Guardar los valores antes de resetear el formulario
+      const jaulaNombre = newJaulaForm.nombre;
+      const galponNombre = newJaulaForm.galponNombre;
+
       const response = await api.post('/galpones/jaulas', {
-        nombre: newJaulaForm.nombre,
+        nombre: jaulaNombre,
         galponId: galpon.id,
-        galponNombre: newJaulaForm.galponNombre,
+        galponNombre: galponNombre,
         descripcion: newJaulaForm.descripcion,
         capacidadMaxima: newJaulaForm.capacidadMaxima,
         tipo: newJaulaForm.tipo
@@ -1220,18 +1236,19 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
           tipo: 'Estándar'
         });
 
-        // Actualizar lista de jaulas y seleccionar la nueva
-        const jaulasResponse = await api.get('/galpones/jaulas/todas');
-        if ((jaulasResponse.data as any).success) {
-          const nuevasJaulas = (jaulasResponse.data as any).data;
-          setJaulas(nuevasJaulas);
-
-          // Filtrar jaulas del galpón actual y actualizar inmediatamente
-          const jaulasDelGalpon = nuevasJaulas.filter(jaula => jaula.galponNombre === newJaulaForm.galponNombre);
+        // Actualizar lista de jaulas global y disponibles usando el endpoint específico del galpón
+        const jaulasGalponResponse = await api.get(`/galpones/${encodeURIComponent(galponNombre)}/jaulas`);
+        if ((jaulasGalponResponse.data as any).success) {
+          const jaulasDelGalpon = (jaulasGalponResponse.data as any).data;
+          // Actualizar jaulas globales (opcional, si quieres mantener sincronía)
+          setJaulas(prev => {
+            // Remover las jaulas de este galpón y agregar las nuevas
+            const otrasJaulas = prev.filter(j => j.galponNombre !== galponNombre);
+            return [...otrasJaulas, ...jaulasDelGalpon];
+          });
           setJaulasDisponibles(jaulasDelGalpon);
-
-          // Seleccionar la nueva jaula
-          setMasiveForm(prev => ({ ...prev, jaula: newJaulaForm.nombre }));
+          setJaulasDisponiblesMasivo(jaulasDelGalpon); // Actualiza el estado masivo
+          setMasiveForm(prev => ({ ...prev, jaula: jaulaNombre }));
         }
       }
     } catch (error: unknown) {
@@ -1248,15 +1265,12 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     if (name) {
       setMasiveForm(prev => ({ ...prev, [name]: value }));
 
-      // Si cambia el galpón, filtrar las jaulas disponibles y actualizar capacidad
+      // Si cambia el galpón, filtrar las jaulas disponibles SOLO para el masivo
       if (name === 'galpon') {
         const jaulasDelGalpon = jaulas.filter(jaula => jaula.galponNombre === value);
-        setJaulasDisponibles(jaulasDelGalpon);
-        // Limpiar la jaula seleccionada si no pertenece al nuevo galpón
+        setJaulasDisponiblesMasivo(jaulasDelGalpon);
         setMasiveForm(prev => ({ ...prev, jaula: '' }));
-        // Actualizar información de capacidad del galpón
         actualizarCapacidadGalpon(value as string);
-        // Limpiar información de capacidad de jaula
         setCapacidadInfo(prev => ({ ...prev, jaula: undefined }));
       }
 
@@ -1279,7 +1293,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     }
 
     // Validar que la jaula seleccionada pertenece al galpón seleccionado
-    const jaulaValida = jaulasDisponibles.find(j => j.nombre === masiveForm.jaula);
+    const jaulaValida = jaulasDisponiblesMasivo.find(j => j.nombre === masiveForm.jaula);
     if (!jaulaValida) {
       toastService.error('Jaula inválida', 'La jaula seleccionada no pertenece al galpón especificado');
       return;
@@ -2830,7 +2844,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                       <MenuItem value="">
                         <em>Seleccionar jaula</em>
                       </MenuItem>
-                      {jaulasDisponibles.map(jaula => (
+                      {jaulasDisponiblesMasivo.map(jaula => (
                         <MenuItem key={jaula.id} value={jaula.nombre}>
                           {jaula.nombre} {jaula.capacidadMaxima ? `(Cap: ${jaula.capacidadMaxima})` : ''}
                         </MenuItem>
@@ -2854,13 +2868,13 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
                     Primero selecciona un galpón
                   </Typography>
-                ) : jaulasDisponibles.length === 0 ? (
+                ) : jaulasDisponiblesMasivo.length === 0 ? (
                   <Typography variant="caption" color="warning.main" sx={{ mt: 0.5 }}>
                     No hay jaulas disponibles en este galpón
                   </Typography>
                 ) : (
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {jaulasDisponibles.length} jaula{jaulasDisponibles.length !== 1 ? 's' : ''} disponible{jaulasDisponibles.length !== 1 ? 's' : ''}
+                    {jaulasDisponiblesMasivo.length} jaula{jaulasDisponiblesMasivo.length !== 1 ? 's' : ''} disponible{jaulasDisponiblesMasivo.length !== 1 ? 's' : ''}
                   </Typography>
                 )}
               </Box>

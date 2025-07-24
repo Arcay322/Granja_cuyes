@@ -1,3 +1,11 @@
+// Handlers globales para errores no capturados
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -29,7 +37,9 @@ import { swaggerUi, swaggerSpec } from './utils/swagger';
 
 dotenv.config();
 
+console.log('===> Iniciando app Express...');
 const app = express();
+console.log('===> App Express creada');
 app.use(helmet());
 app.use(compression());
 
@@ -173,10 +183,10 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
+console.log('===> Llamando a app.listen...');
 app.listen(PORT, () => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`Servidor backend escuchando en puerto ${PORT}`);
-  }
+  console.log(`Servidor backend escuchando en puerto ${PORT}`);
 });
+console.log('===> app.listen ejecutado');
 
 export { app };

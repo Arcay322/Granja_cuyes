@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { verificarEspacioEnJaula } from './jaulaCapacity.service';
 
 const prisma = new PrismaClient();
 
@@ -220,6 +221,7 @@ export const createCamadaConCrias = async (
     numHembras: number;
   }
 ) => {
+
   // Obtener información de la madre para determinar galpón, jaula y raza
   const madre = camadaData.madreId ? await prisma.cuy.findUnique({
     where: { id: camadaData.madreId },
@@ -230,6 +232,17 @@ export const createCamadaConCrias = async (
     where: { id: camadaData.padreId },
     select: { raza: true }
   }) : null;
+
+  // Validar capacidad de la jaula antes de crear camada y crías
+  if (madre && madre.galpon && madre.jaula) {
+    // Por defecto, capacidad 10 si no se gestiona por tabla
+    const capacidadMaxima = 10;
+    const cantidadAgregar = (camadaData.numVivos || 0) + 1; // madre + crías vivas
+    const espacio = await verificarEspacioEnJaula(madre.galpon, madre.jaula, cantidadAgregar, capacidadMaxima);
+    if (!espacio.ok) {
+      throw new Error(`No hay espacio suficiente en la jaula ${madre.galpon}-${madre.jaula} (ocupados: ${espacio.totalCuyes}, capacidad: ${espacio.capacidad}, se requieren: ${cantidadAgregar})`);
+    }
+  }
 
   // Usar transacción para asegurar consistencia
   const result = await prisma.$transaction(async (tx) => {

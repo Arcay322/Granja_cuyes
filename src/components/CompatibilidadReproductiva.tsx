@@ -124,24 +124,29 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { minHeight: '70vh' }
+        sx: {
+          minHeight: { xs: 'auto', md: '70vh' },
+          borderRadius: 3,
+          boxShadow: 6,
+          background: '#fff',
+        }
       }}
     >
-      <DialogTitle>
+      <DialogTitle sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 3 }, bgcolor: '#f8fafc' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: { xs: 18, md: 22 } }}>
             <Favorite sx={{ mr: 1, verticalAlign: 'middle', color: '#e91e63' }} />
             Compatibilidad Reproductiva
           </Typography>
-          <IconButton onClick={onClose}>
+          <IconButton onClick={onClose} sx={{ color: '#888', '&:hover': { color: '#e91e63', bgcolor: '#fce4ec' } }}>
             <Close />
           </IconButton>
         </Box>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 3 } }}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
             <CircularProgress />
           </Box>
         ) : error ? (
@@ -151,67 +156,96 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
         ) : compatibilidad ? (
           <Box>
             {/* Resumen de compatibilidad */}
-            <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Typography variant="h4" gutterBottom>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: { xs: 2, md: 4 } }}>
+              <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, fontSize: { xs: 20, md: 28 } }}>
                 Compatibilidad: {compatibilidad.nivelCompatibilidad}
               </Typography>
-              
-              <Box sx={{ position: 'relative', display: 'inline-block', width: 200, height: 200 }}>
-                <CircularProgress
-                  variant="determinate"
-                  value={100}
-                  size={200}
-                  thickness={4}
-                  sx={{ color: '#f0f0f0', position: 'absolute' }}
-                />
-                <CircularProgress
-                  variant="determinate"
-                  value={compatibilidad.compatibilityScore}
-                  size={200}
-                  thickness={4}
-                  sx={{ color: getScoreColor(compatibilidad.compatibilityScore), position: 'absolute' }}
-                />
+              <Box
+                sx={{
+                  width: { xs: 140, sm: 180, md: 200 },
+                  height: { xs: 140, sm: 180, md: 200 },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  mb: 1
+                }}
+              >
+                <Box sx={{ position: 'absolute', width: '100%', height: '100%' }}>
+                  <CircularProgress
+                    variant="determinate"
+                    value={100}
+                    size={200}
+                    thickness={4}
+                    sx={{
+                      color: '#f0f0f0',
+                      width: '100% !important',
+                      height: '100% !important',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0
+                    }}
+                  />
+                  <CircularProgress
+                    variant="determinate"
+                    value={compatibilidad.compatibilityScore}
+                    size={200}
+                    thickness={4}
+                    sx={{
+                      color: getScoreColor(compatibilidad.compatibilityScore),
+                      width: '100% !important',
+                      height: '100% !important',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0
+                    }}
+                  />
+                </Box>
                 <Box
                   sx={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    bottom: 0,
-                    right: 0,
+                    width: '100%',
+                    height: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    pointerEvents: 'none'
                   }}
                 >
-                  <Typography variant="h3" component="div" color={getScoreColor(compatibilidad.compatibilityScore)}>
+                  <Typography
+                    variant="h3"
+                    component="div"
+                    color={getScoreColor(compatibilidad.compatibilityScore)}
+                    sx={{ fontWeight: 700, fontSize: { xs: 32, sm: 40, md: 48 } }}
+                  >
                     {compatibilidad.compatibilityScore}%
                   </Typography>
                 </Box>
               </Box>
-              
-              <Chip 
+              <Chip
                 label={compatibilidad.nivelCompatibilidad}
                 color={getChipColor(compatibilidad.nivelCompatibilidad) as any}
-                sx={{ mt: 2, fontSize: '1rem', padding: '20px 10px' }}
+                sx={{ mt: 2, fontSize: { xs: '0.95rem', md: '1.1rem' }, px: 2, py: 1, fontWeight: 600, letterSpacing: 0.5 }}
               />
             </Box>
 
-            <Divider sx={{ my: 3 }} />
+            <Divider sx={{ my: { xs: 2, md: 3 } }} />
 
             {/* Predicciones */}
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, fontSize: { xs: 16, md: 20 } }}>
               <Assessment sx={{ mr: 1, verticalAlign: 'middle' }} />
               Predicciones
             </Typography>
-            
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+            <Grid container spacing={2} sx={{ mb: { xs: 2, md: 3 } }}>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{ borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent sx={{ textAlign: 'center', p: { xs: 2, md: 3 } }}>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
                       Litada Esperada
                     </Typography>
-                    <Typography variant="h3">
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#43a047' }}>
                       {compatibilidad.predicciones.litadaEsperada}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -220,14 +254,13 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
                   </CardContent>
                 </Card>
               </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{ borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent sx={{ textAlign: 'center', p: { xs: 2, md: 3 } }}>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
                       Tasa de Éxito
                     </Typography>
-                    <Typography variant="h3">
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976d2' }}>
                       {compatibilidad.predicciones.tasaExitoEstimada}%
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -236,14 +269,13 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
                   </CardContent>
                 </Card>
               </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{ borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent sx={{ textAlign: 'center', p: { xs: 2, md: 3 } }}>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
                       Gestación
                     </Typography>
-                    <Typography variant="h3">
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#ff9800' }}>
                       {compatibilidad.predicciones.tiempoGestacionEstimado}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -254,16 +286,15 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
               </Grid>
             </Grid>
 
-            <Divider sx={{ my: 3 }} />
+            <Divider sx={{ my: { xs: 2, md: 3 } }} />
 
             {/* Recomendaciones y advertencias */}
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom color="primary">
+                <Typography variant="h6" gutterBottom color="primary" sx={{ fontWeight: 600, fontSize: { xs: 15, md: 18 } }}>
                   <CheckCircle sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Recomendaciones
                 </Typography>
-                
                 <List>
                   {compatibilidad.recomendaciones.map((recomendacion, index) => (
                     <ListItem key={index}>
@@ -275,13 +306,11 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
                   ))}
                 </List>
               </Grid>
-              
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom color="warning.main">
+                <Typography variant="h6" gutterBottom color="warning.main" sx={{ fontWeight: 600, fontSize: { xs: 15, md: 18 } }}>
                   <Warning sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Advertencias
                 </Typography>
-                
                 {compatibilidad.advertencias.length > 0 ? (
                   <List>
                     {compatibilidad.advertencias.map((advertencia, index) => (
@@ -301,59 +330,49 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
               </Grid>
             </Grid>
 
-            <Divider sx={{ my: 3 }} />
+            <Divider sx={{ my: { xs: 2, md: 3 } }} />
 
             {/* Detalles de los reproductores */}
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, fontSize: { xs: 15, md: 18 } }}>
               <Pets sx={{ mr: 1, verticalAlign: 'middle' }} />
               Detalles de los Reproductores
             </Typography>
-            
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
-                <Card>
+                <Card sx={{ borderRadius: 3, boxShadow: 2 }}>
                   <CardContent>
-                    <Typography variant="h6" color="#e91e63" gutterBottom>
+                    <Typography variant="h6" color="#e91e63" gutterBottom sx={{ fontWeight: 700 }}>
                       Madre (ID: {compatibilidad.detalles.madre.id})
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Raza:</strong> {compatibilidad.detalles.madre.raza}
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Edad:</strong> {compatibilidad.detalles.madre.edad} meses
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Peso:</strong> {compatibilidad.detalles.madre.peso} kg
                     </Typography>
-                    
                     <Divider sx={{ my: 2 }} />
-                    
-                    <Typography variant="subtitle1" gutterBottom>
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                       Historial Reproductivo:
                     </Typography>
-                    
-                    <Grid container spacing={2}>
+                    <Grid container spacing={1}>
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Total Preñeces:</strong> {compatibilidad.detalles.madre.historial.totalPreneces}
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Preñeces Exitosas:</strong> {compatibilidad.detalles.madre.historial.prenecesExitosas}
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Tasa de Éxito:</strong> {compatibilidad.detalles.madre.historial.tasaExito.toFixed(1)}%
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Promedio Litada:</strong> {compatibilidad.detalles.madre.historial.promedioLitada.toFixed(1)}
@@ -363,51 +382,41 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
                   </CardContent>
                 </Card>
               </Grid>
-              
               <Grid item xs={12} md={6}>
-                <Card>
+                <Card sx={{ borderRadius: 3, boxShadow: 2 }}>
                   <CardContent>
-                    <Typography variant="h6" color="#2196f3" gutterBottom>
+                    <Typography variant="h6" color="#2196f3" gutterBottom sx={{ fontWeight: 700 }}>
                       Padre (ID: {compatibilidad.detalles.padre.id})
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Raza:</strong> {compatibilidad.detalles.padre.raza}
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Edad:</strong> {compatibilidad.detalles.padre.edad} meses
                     </Typography>
-                    
                     <Typography variant="body1">
                       <strong>Peso:</strong> {compatibilidad.detalles.padre.peso} kg
                     </Typography>
-                    
                     <Divider sx={{ my: 2 }} />
-                    
-                    <Typography variant="subtitle1" gutterBottom>
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                       Historial Reproductivo:
                     </Typography>
-                    
-                    <Grid container spacing={2}>
+                    <Grid container spacing={1}>
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Total Cruces:</strong> {compatibilidad.detalles.padre.historial.totalCruces}
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Cruces Exitosos:</strong> {compatibilidad.detalles.padre.historial.crucesExitosos}
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Tasa de Éxito:</strong> {compatibilidad.detalles.padre.historial.tasaExito.toFixed(1)}%
                         </Typography>
                       </Grid>
-                      
                       <Grid item xs={6}>
                         <Typography variant="body2">
                           <strong>Promedio Litada:</strong> {compatibilidad.detalles.padre.historial.promedioLitada.toFixed(1)}
@@ -426,8 +435,8 @@ const CompatibilidadReproductiva: React.FC<CompatibilidadReproductivaProps> = ({
         )}
       </DialogContent>
 
-      <DialogActions>
-        <Button onClick={onClose} color="primary">
+      <DialogActions sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 3 } }}>
+        <Button onClick={onClose} color="primary" variant="contained" sx={{ borderRadius: 2, fontWeight: 600, fontSize: { xs: 15, md: 16 } }}>
           Cerrar
         </Button>
       </DialogActions>

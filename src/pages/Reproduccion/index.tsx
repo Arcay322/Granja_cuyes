@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Breadcrumbs, Link, Container } from '../../utils/mui';
 import { Link as RouterLink } from 'react-router-dom';
 import { Home, NavigateNext } from '@mui/icons-material';
-import ReproduccionManagerFixed from '../../components/ReproduccionManagerFixed';
+import ReproduccionManagerFixedClean from '../../components/ReproduccionManagerFixedClean';
 
 const ReproduccionPage: React.FC = () => {
   return (
@@ -37,7 +37,7 @@ const ReproduccionPage: React.FC = () => {
         </Breadcrumbs>
         
         {/* Tu módulo original completo */}
-        <ReproduccionManagerFixed />
+        <ReproduccionManagerFixedClean />
       </Box>
     </Container>
   );

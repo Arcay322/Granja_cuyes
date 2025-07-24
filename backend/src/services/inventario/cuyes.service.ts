@@ -308,12 +308,25 @@ export const createCuy = async (data: CreateCuyData): Promise<Cuy> => {
   const fechaNacimiento = data.fechaNacimiento ? new Date(data.fechaNacimiento) : new Date();
   const peso = typeof data.peso === 'string' ? parseFloat(data.peso) : data.peso;
 
-  // Determinar etapa automáticamente basada en fecha de nacimiento y sexo
-  const etapaVida = data.etapaVida || determinarEtapaAutomatica(fechaNacimiento, data.sexo || 'Indefinido');
-  const proposito = data.proposito || determinarPropositoAutomatico(etapaVida);
+  // Si el usuario envía etapaVida manualmente, respetarla. Si no, calcular automáticamente.
+  let etapaVida = data.etapaVida;
+  if (!etapaVida) {
+    etapaVida = determinarEtapaAutomatica(fechaNacimiento, data.sexo || 'Indefinido');
+  }
+  // Si el usuario envía proposito manualmente, respetarlo. Si no, calcular automáticamente.
+  let proposito = data.proposito;
+  if (!proposito) {
+    proposito = determinarPropositoAutomatico(etapaVida);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`🆕 Creando cuy: Fecha=${fechaNacimiento.toISOString().split('T')[0]}, Sexo=${data.sexo}, Etapa=${etapaVida}, Propósito=${proposito}`);
+    if (data.etapaVida) {
+      console.log(`⚠️  Etapa de vida enviada manualmente: ${data.etapaVida}`);
+    }
+    if (data.proposito) {
+      console.log(`⚠️  Propósito enviado manualmente: ${data.proposito}`);
+    }
   }
 
   // Verificar y crear galpón si no existe
@@ -400,11 +413,11 @@ export const updateCuy = async (id: number, data: Partial<CreateCuyData>): Promi
   let etapaVida = data.etapaVida || cuyActual.etapaVida;
   let proposito = data.proposito || cuyActual.proposito;
 
-  // Si se cambió la fecha de nacimiento o el sexo, reevaluar la etapa automáticamente
+  // Si el usuario NO envió etapaVida manualmente, recalcular si cambia fechaNacimiento o sexo
   const fechaCambio = data.fechaNacimiento && data.fechaNacimiento !== cuyActual.fechaNacimiento.toISOString();
   const sexoCambio = data.sexo && data.sexo !== cuyActual.sexo;
 
-  if (fechaCambio || sexoCambio) {
+  if (!data.etapaVida && (fechaCambio || sexoCambio)) {
     const nuevaEtapa = determinarEtapaAutomatica(fechaNacimiento, sexo);
     if (nuevaEtapa !== etapaVida) {
       etapaVida = nuevaEtapa;
@@ -839,7 +852,6 @@ export const cambiarProposito = async (id: number, nuevoProposito: string, nueva
         etapaVida: nuevaEtapa
       }
     });
-
     return cuyActualizado;
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {

@@ -1,3 +1,61 @@
+// Estadísticas reproductivas de una madre
+export const getEstadisticasMadre = async (madreId: number) => {
+  // Buscar historial de preñeces
+  const historialPreneces = await prisma.prenez.findMany({
+    where: { madreId },
+    select: {
+      id: true,
+      fechaPrenez: true,
+      fechaProbableParto: true,
+      estado: true,
+      camada: {
+        select: { numVivos: true, numMuertos: true, fechaNacimiento: true }
+      }
+    },
+    orderBy: { fechaPrenez: 'desc' }
+  });
+  const totalPreneces = historialPreneces.length;
+  const prenecesExitosas = historialPreneces.filter(p => p.estado === 'completada').length;
+  const camadas = historialPreneces.filter(p => p.camada).map(p => p.camada!);
+  const promedioLitada = camadas.length > 0 ? camadas.reduce((sum, c) => sum + c.numVivos, 0) / camadas.length : 0;
+  const tasaExito = totalPreneces > 0 ? (prenecesExitosas / totalPreneces) * 100 : 0;
+  return {
+    totalPreneces,
+    prenecesExitosas,
+    promedioLitada: Math.round(promedioLitada * 10) / 10,
+    tasaExito: Math.round(tasaExito * 10) / 10,
+    historialPreneces
+  };
+};
+
+// Estadísticas reproductivas de un padre
+export const getEstadisticasPadre = async (padreId: number) => {
+  // Buscar historial de cruces
+  const historialCruces = await prisma.prenez.findMany({
+    where: { padreId },
+    select: {
+      id: true,
+      fechaPrenez: true,
+      estado: true,
+      camada: {
+        select: { numVivos: true, numMuertos: true, fechaNacimiento: true }
+      }
+    },
+    orderBy: { fechaPrenez: 'desc' }
+  });
+  const totalCruces = historialCruces.length;
+  const crucesExitosos = historialCruces.filter(p => p.estado === 'completada').length;
+  const camadas = historialCruces.filter(p => p.camada).map(p => p.camada!);
+  const promedioDescendencia = camadas.length > 0 ? camadas.reduce((sum, c) => sum + c.numVivos, 0) / camadas.length : 0;
+  const tasaExito = totalCruces > 0 ? (crucesExitosos / totalCruces) * 100 : 0;
+  return {
+    totalCruces,
+    crucesExitosos,
+    promedioDescendencia: Math.round(promedioDescendencia * 10) / 10,
+    tasaExito: Math.round(tasaExito * 10) / 10,
+    historialCruces
+  };
+};
 import { PrismaClient, Prenez } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -610,16 +668,17 @@ export const getPadresDisponibles = async () => {
         // Calcular edad en meses
         const edadMeses = Math.floor((new Date().getTime() - new Date(padre.fechaNacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30));
 
-        // Verificar disponibilidad (no más de 2 cruces por semana)
+        // Verificar disponibilidad (permitir hasta 3 cruces por semana)
         const crucesRecientes = historialCruces.filter(p => {
           const diasDesde = Math.floor((new Date().getTime() - new Date(p.fechaPrenez).getTime()) / (1000 * 60 * 60 * 24));
           return diasDesde <= 7;
         });
 
-        const estaDisponible = crucesRecientes.length < 2 && 
+        // Peso en gramos: debe ser >= 1000 (1kg)
+        const estaDisponible = crucesRecientes.length < 3 && 
                               edadMeses >= 4 && 
                               edadMeses <= 36 && 
-                              padre.peso >= 1.0;
+                              padre.peso >= 1000;
 
         return {
           ...padre,
@@ -638,14 +697,19 @@ export const getPadresDisponibles = async () => {
           },
           salud: {
             estado: padre.estado,
-            pesoOptimo: padre.peso >= 1.0 && padre.peso <= 2.0
+            pesoOptimo: padre.peso >= 1000 && padre.peso <= 2000
           }
         };
       })
     );
 
-    // Filtrar solo padres disponibles
-    const padresDisponibles = padresConHistorial.filter(padre => padre.estaDisponible);
+    // Si no hay historial de cruces, o si nunca han sido padres, considerarlos disponibles
+    const padresDisponibles = padresConHistorial.filter(padre => {
+      // Si nunca ha tenido cruces, está disponible
+      if (padre.rendimientoReproductivo.totalCruces === 0) return true;
+      // Si tiene historial, usar la lógica anterior
+      return padre.estaDisponible;
+    });
 
     return padresDisponibles;
   } catch (error) {

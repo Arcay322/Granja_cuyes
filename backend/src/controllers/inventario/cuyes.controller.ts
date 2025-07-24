@@ -1,3 +1,101 @@
+// Obtener estadísticas reproductivas de un cuy (madre o padre)
+import * as prenezService from '../../services/reproduccion/prenez.service';
+
+// GET /cuyes/:id/estadisticas
+export const getCuyEstadisticas = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'ID de cuy inválido' });
+    }
+    // Buscar cuy
+    const cuy = await cuyesService.getCuyById(id);
+    if (!cuy) {
+      return res.status(404).json({ success: false, message: 'Cuy no encontrado' });
+    }
+
+    let estadisticas = null;
+    if (cuy.sexo === 'H') {
+      estadisticas = await prenezService.getEstadisticasMadre(id);
+      if (estadisticas) {
+        // Calcular campos avanzados para la madre
+        const { totalPreneces, prenecesExitosas, promedioLitada, tasaExito, historialPreneces } = estadisticas;
+        // Crías vivas/muertas
+        const camadas = historialPreneces.filter((p: any) => p.camada).map((p: any) => p.camada);
+        const criasVivas = camadas.reduce((sum: number, c: any) => sum + (c.numVivos || 0), 0);
+        const criasMuertas = camadas.reduce((sum: number, c: any) => sum + (c.numMuertos || 0), 0);
+        // Fechas de partos
+        const fechasPartos = camadas.map((c: any) => c.fechaNacimiento).sort();
+        const primerParto = fechasPartos.length > 0 ? fechasPartos[0] : null;
+        const ultimoParto = fechasPartos.length > 0 ? fechasPartos[fechasPartos.length - 1] : null;
+        const diasDesdeUltimoParto = ultimoParto ? Math.floor((Date.now() - new Date(ultimoParto).getTime()) / (1000 * 60 * 60 * 24)) : null;
+        // Días entre partos
+        const diasEntrePartos = fechasPartos.length > 1 ? fechasPartos.slice(1).map((f: any, i: number) => Math.floor((new Date(f).getTime() - new Date(fechasPartos[i]).getTime()) / (1000 * 60 * 60 * 24))) : [];
+        // Abortos
+        const abortos = historialPreneces.filter((p: any) => p.estado === 'fallida').length;
+        // Partos próximos
+        const partosProximos = historialPreneces.filter((p: any) => p.estado === 'activa').length;
+        estadisticas = {
+          resumen: {
+            totalPreneces,
+            prenecesExitosas,
+            promedioLitada,
+            tasaExito,
+            abortos,
+            partosProximos,
+            primerParto,
+            ultimoParto,
+            diasDesdeUltimoParto
+          },
+          crias: {
+            vivas: criasVivas,
+            muertas: criasMuertas
+          },
+          dinamica: {
+            diasEntrePartos
+          },
+          historialPreneces
+        };
+      }
+    } else if (cuy.sexo === 'M') {
+      estadisticas = await prenezService.getEstadisticasPadre(id);
+      if (estadisticas) {
+        const { totalCruces, crucesExitosos, promedioDescendencia, tasaExito, historialCruces } = estadisticas;
+        // Hijos vivos/muertos
+        const camadas = historialCruces.filter((p: any) => p.camada).map((p: any) => p.camada);
+        const hijosVivos = camadas.reduce((sum: number, c: any) => sum + (c.numVivos || 0), 0);
+        const hijosMuertos = camadas.reduce((sum: number, c: any) => sum + (c.numMuertos || 0), 0);
+        // Fechas de montas
+        const fechasMontas = historialCruces.map((p: any) => p.fechaPrenez).sort();
+        const primerMonta = fechasMontas.length > 0 ? fechasMontas[0] : null;
+        const ultimaMonta = fechasMontas.length > 0 ? fechasMontas[fechasMontas.length - 1] : null;
+        const diasDesdeUltimaMonta = ultimaMonta ? Math.floor((Date.now() - new Date(ultimaMonta).getTime()) / (1000 * 60 * 60 * 24)) : null;
+        estadisticas = {
+          resumen: {
+            totalCruces,
+            crucesExitosos,
+            promedioDescendencia,
+            tasaExito,
+            primerMonta,
+            ultimaMonta,
+            diasDesdeUltimaMonta
+          },
+          hijos: {
+            vivos: hijosVivos,
+            muertos: hijosMuertos
+          },
+          historialCruces
+        };
+      }
+    } else {
+      estadisticas = { message: 'Sexo de cuy no reconocido para estadísticas reproductivas' };
+    }
+    res.status(200).json({ success: true, data: estadisticas, message: 'Estadísticas reproductivas avanzadas obtenidas' });
+  } catch (error) {
+    console.error('Error en getCuyEstadisticas:', error);
+    next(error);
+  }
+};
 import { Request, Response, NextFunction } from 'express';
 import * as cuyesService from '../../services/inventario/cuyes.service';
 

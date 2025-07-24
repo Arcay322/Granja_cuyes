@@ -15,6 +15,8 @@ router.get('/por-etapa/:etapa', authenticateToken, cuyesController.getCuyesPorEt
 
 // ===== RUTAS PRINCIPALES =====
 router.get('/', authenticateToken, cuyesController.getAllCuyes);
+// Ruta específica debe ir antes de la genérica
+router.get('/:id/estadisticas', authenticateToken, cuyesController.getCuyEstadisticas);
 router.get('/:id', authenticateToken, cuyesController.getCuyById);
 router.post('/', authenticateToken, cuyesController.createCuy);
 router.put('/:id', authenticateToken, cuyesController.updateCuy);
@@ -29,6 +31,9 @@ router.patch('/:id/hacer-reproductor', authenticateToken, cuyesController.cambia
 router.patch('/:id/enviar-engorde', authenticateToken, cuyesController.cambiarAEngorde);
 
 // ===== RUTAS PARA HISTORIAL Y ANÁLISIS =====
+
+// Nueva ruta: estadísticas reproductivas individuales
+router.get('/:id/estadisticas', authenticateToken, cuyesController.getCuyEstadisticas);
 router.get('/:id/historial', authenticateToken, cuyesController.getCuyHistorial);
 
 // ===== RUTAS PARA REGISTRO MASIVO =====

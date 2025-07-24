@@ -1,4 +1,210 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
+import api from '../services/api';
+import { Dialog as MuiDialog } from '@mui/material';
+interface EstadisticasDialogProps {
+  open: boolean;
+  onClose: () => void;
+  cuy: any | null;
+  tipo: 'madre' | 'padre';
+}
+
+export const EstadisticasDialog: React.FC<EstadisticasDialogProps> = ({ open, onClose, cuy, tipo }) => {
+  const [loading, setLoading] = useState(false);
+  const [estadisticas, setEstadisticas] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && cuy) {
+      setLoading(true);
+      setError(null);
+      api.get(`/cuyes/${cuy.id}/estadisticas`)
+        .then(res => {
+          setEstadisticas(res.data.data);
+        })
+        .catch(() => {
+          setError('No se pudieron obtener las estadísticas');
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setEstadisticas(null);
+    }
+  }, [open, cuy]);
+
+  // Helper para formatear fechas
+  const formatDate = (date: string | number | Date | null) => {
+    if (!date) return '-';
+    try {
+      return new Date(date).toLocaleDateString('es-PE', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return '-';
+    }
+  };
+
+  return (
+    <MuiDialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ bgcolor: '#f8fafc', fontWeight: 700, fontSize: { xs: 18, md: 22 } }}>
+        Estadísticas reproductivas del {tipo === 'madre' ? 'madre' : 'padre'} (ID: {cuy?.id})
+      </DialogTitle>
+      <DialogContent sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 3 } }}>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : estadisticas ? (
+          <Box sx={{ p: 1 }}>
+            <Grid container spacing={2}>
+              {/* Resumen principal */}
+              <Grid item xs={12} md={4}>
+                <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: tipo === 'madre' ? '#e91e63' : '#1976d2' }}>
+                      <Pets sx={{ mr: 1, verticalAlign: 'middle' }} /> Resumen
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                      {tipo === 'madre' ? (
+                        <>
+                          <Chip label={`Preñeces: ${estadisticas.resumen.totalPreneces ?? '-'}`} color="primary" />
+                          <Chip label={`Exitosas: ${estadisticas.resumen.prenecesExitosas ?? '-'}`} color="success" />
+                          <Chip label={`Abortos: ${estadisticas.resumen.abortos ?? '-'}`} color="error" />
+                          <Chip label={`Prom. crías/camada: ${estadisticas.resumen.promedioLitada ?? '-'}`} color="info" />
+                          <Chip label={`Tasa éxito: ${estadisticas.resumen.tasaExito ?? '-'}%`} color="success" />
+                          <Chip label={`Partos próximos: ${estadisticas.resumen.partosProximos ?? '-'}`} color="warning" />
+                        </>
+                      ) : (
+                        <>
+                          <Chip label={`Cruces: ${estadisticas.resumen.totalCruces ?? '-'}`} color="primary" />
+                          <Chip label={`Exitosos: ${estadisticas.resumen.crucesExitosos ?? '-'}`} color="success" />
+                          <Chip label={`Prom. descendencia: ${estadisticas.resumen.promedioDescendencia ?? '-'}`} color="info" />
+                          <Chip label={`Tasa éxito: ${estadisticas.resumen.tasaExito ?? '-'}%`} color="success" />
+                        </>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Crías/Hijos y dinámica */}
+              <Grid item xs={12} md={4}>
+                <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: '#43a047' }}>
+                      {tipo === 'madre' ? 'Crías' : 'Hijos'}
+                    </Typography>
+                    {tipo === 'madre' ? (
+                      <>
+                        <Typography variant="body2">Vivas: <b>{estadisticas.crias?.vivas ?? '-'}</b></Typography>
+                        <Typography variant="body2">Muertas: <b>{estadisticas.crias?.muertas ?? '-'}</b></Typography>
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="body2">Vivos: <b>{estadisticas.hijos?.vivos ?? '-'}</b></Typography>
+                        <Typography variant="body2">Muertos: <b>{estadisticas.hijos?.muertos ?? '-'}</b></Typography>
+                      </>
+                    )}
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600, color: '#ff9800' }}>
+                      Dinámica
+                    </Typography>
+                    {tipo === 'madre' ? (
+                      <>
+                        <Typography variant="body2">Días entre partos:</Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
+                          {estadisticas.dinamica?.diasEntrePartos?.length > 0 ? (
+                            estadisticas.dinamica.diasEntrePartos.map((dias: number, i: number) => (
+                              <Chip key={i} label={`${dias} días`} color="default" size="small" />
+                            ))
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">No hay datos</Typography>
+                          )}
+                        </Box>
+                      </>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Fechas importantes */}
+              <Grid item xs={12} md={4}>
+                <Card sx={{ height: '100%', borderRadius: 3, boxShadow: 2, bgcolor: '#f8fafc' }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, color: '#1976d2' }}>
+                      <CalendarMonth sx={{ mr: 1, verticalAlign: 'middle' }} /> Fechas
+                    </Typography>
+                    {tipo === 'madre' ? (
+                      <>
+                        <Typography variant="body2">Primer parto: <b>{formatDate(estadisticas.resumen.primerParto)}</b></Typography>
+                        <Typography variant="body2">Último parto: <b>{formatDate(estadisticas.resumen.ultimoParto)}</b></Typography>
+                        <Typography variant="body2">Días desde último parto: <b>{estadisticas.resumen.diasDesdeUltimoParto ?? '-'}</b></Typography>
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="body2">Primera monta: <b>{formatDate(estadisticas.resumen.primerMonta)}</b></Typography>
+                        <Typography variant="body2">Última monta: <b>{formatDate(estadisticas.resumen.ultimaMonta)}</b></Typography>
+                        <Typography variant="body2">Días desde última monta: <b>{estadisticas.resumen.diasDesdeUltimaMonta ?? '-'}</b></Typography>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Historial avanzado */}
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 700, color: '#e91e63' }}>
+                <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} /> Historial reproductivo
+              </Typography>
+              <Paper variant="outlined" sx={{ maxHeight: 220, overflow: 'auto', p: 1, bgcolor: '#f8fafc', borderRadius: 2 }}>
+                <List dense>
+                  {tipo === 'madre' && estadisticas.historialPreneces ? (
+                    estadisticas.historialPreneces.map((p: any, i: number) => (
+                      <ListItem key={i} sx={{ borderBottom: '1px solid #eee' }}>
+                        <ListItemIcon>
+                          {p.estado === 'completada' ? <CheckCircle color="success" /> : p.estado === 'fallida' ? <Warning color="error" /> : <Info color="info" />}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={<span style={{ fontWeight: 600 }}>{`Preñez: ${formatDate(p.fechaPrenez)} → ${formatDate(p.fechaProbableParto)}`}</span>}
+                          secondary={<span style={{ color: '#888' }}>{`Estado: ${p.estado}${p.camada ? ` | Camada: ${p.camada.numVivos} vivos, ${p.camada.numMuertos} muertos` : ''}`}</span>}
+                        />
+                      </ListItem>
+                    ))
+                  ) : null}
+                  {tipo === 'padre' && estadisticas.historialCruces ? (
+                    estadisticas.historialCruces.map((p: any, i: number) => (
+                      <ListItem key={i} sx={{ borderBottom: '1px solid #eee' }}>
+                        <ListItemIcon>
+                          {p.estado === 'completada' ? <CheckCircle color="success" /> : p.estado === 'fallida' ? <Warning color="error" /> : <Info color="info" />}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={<span style={{ fontWeight: 600 }}>{`Monta: ${formatDate(p.fechaPrenez)}`}</span>}
+                          secondary={<span style={{ color: '#888' }}>{`Estado: ${p.estado}${p.camada ? ` | Camada: ${p.camada.numVivos} vivos, ${p.camada.numMuertos} muertos` : ''}`}</span>}
+                        />
+                      </ListItem>
+                    ))
+                  ) : null}
+                  {(!estadisticas.historialPreneces && !estadisticas.historialCruces) && (
+                    <ListItem>
+                      <ListItemText primary="Sin historial disponible" />
+                    </ListItem>
+                  )}
+                </List>
+              </Paper>
+            </Box>
+          </Box>
+        ) : (
+          <Typography>No hay datos disponibles.</Typography>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 3 } }}>
+        <Button onClick={onClose} color="primary" variant="contained" sx={{ borderRadius: 2, fontWeight: 600, fontSize: { xs: 15, md: 16 } }}>
+          Cerrar
+        </Button>
+      </DialogActions>
+    </MuiDialog>
+  );
+};
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography,
   Box, CircularProgress, Grid, Card, CardContent, Divider, Chip,
@@ -70,6 +276,15 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
     return 'Baja';
   };
 
+  // Estado para el diálogo de estadísticas
+  const [estadisticasOpen, setEstadisticasOpen] = useState(false);
+  const [selectedCuy, setSelectedCuy] = useState<any | null>(null);
+
+  const handleShowEstadisticas = (reproductor: any) => {
+    setSelectedCuy(reproductor);
+    setEstadisticasOpen(true);
+  };
+
   const renderReproductorCard = (reproductor: any) => {
     const isMother = tipo === 'madre';
     const historial = isMother ? reproductor.historialReproductivo : reproductor.rendimientoReproductivo;
@@ -86,7 +301,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
               boxShadow: 4
             }
           }}
-          onClick={() => onSelect(reproductor)}
         >
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -105,7 +319,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                   </Typography>
                 </Box>
               </Box>
-              
               <Box sx={{ textAlign: 'right' }}>
                 <Chip 
                   label={getPerformanceLabel(tasaExito)}
@@ -117,8 +330,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                 </Typography>
               </Box>
             </Box>
-
-            {/* Información básica */}
             <Grid container spacing={2} sx={{ mb: 2 }}>
               <Grid size={4}>
                 <Box sx={{ textAlign: 'center' }}>
@@ -145,8 +356,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                 </Box>
               </Grid>
             </Grid>
-
-            {/* Barra de rendimiento */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Rendimiento: {tasaExito.toFixed(1)}%
@@ -158,66 +367,9 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                 sx={{ height: 8, borderRadius: 4 }}
               />
             </Box>
-
-            {/* Historial específico */}
-            {isMother ? (
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
-                  Historial Reproductivo:
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Preñeces:</strong> {historial?.totalPreneces || 0}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Exitosas:</strong> {historial?.prenecesExitosas || 0}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Prom. Litada:</strong> {historial?.promedioLitada?.toFixed(1) || '0.0'}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Estado:</strong> {reproductor.estadoReproductivo}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Box>
-            ) : (
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
-                  Rendimiento Reproductivo:
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Cruces:</strong> {historial?.totalCruces || 0}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Prom. Desc.:</strong> {historial?.promedioDescendencia?.toFixed(1) || '0.0'}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Diversidad:</strong> {reproductor.genetica?.diversidadGenetica || 0}%
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      <strong>Frecuencia:</strong> {historial?.frecuenciaCruce || 0}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Box>
-            )}
-
+            <Button variant="outlined" size="small" sx={{ mb: 1 }} onClick={() => handleShowEstadisticas(reproductor)}>
+              Ver estadísticas
+            </Button>
             {/* Indicadores de salud */}
             <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {reproductor.salud?.pesoOptimo && (
@@ -228,7 +380,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                   icon={<CheckCircle />}
                 />
               )}
-              
               {reproductor.estaDisponible && (
                 <Chip 
                   label="Disponible" 
@@ -237,7 +388,6 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
                   icon={<Star />}
                 />
               )}
-              
               {tasaExito >= 80 && (
                 <Chip 
                   label="Alto Rendimiento" 
@@ -254,7 +404,8 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="lg"
@@ -366,7 +517,14 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
           Cancelar
         </Button>
       </DialogActions>
-    </Dialog>
+      </Dialog>
+      <EstadisticasDialog
+        open={estadisticasOpen}
+        onClose={() => setEstadisticasOpen(false)}
+        cuy={selectedCuy}
+        tipo={tipo}
+      />
+    </>
   );
 };
 

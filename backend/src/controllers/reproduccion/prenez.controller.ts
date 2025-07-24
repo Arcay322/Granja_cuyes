@@ -1,56 +1,40 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import * as prenezService from '../../services/reproduccion/prenez.service';
+import { 
+  asyncHandler, 
+  successResponse, 
+  paginatedResponse,
+  handleReproductionError 
+} from '../../middlewares/validateReproduccion';
+import {
+  PrenezCreateSchema,
+  PrenezUpdateSchema,
+  PrenezQuerySchema,
+  IdParamSchema,
+  CompatibilityQuerySchema,
+  GestationValidationSchema,
+  StatisticsQuerySchema
+} from '../../schemas/reproduccion.schema';
 
 const prisma = new PrismaClient();
 
 // Obtener todas las preñeces con paginación y filtros
-export const getAll = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      estado, 
-      search,
-      fechaDesde,
-      fechaHasta,
-      galpon,
-      jaula
-    } = req.query;
-    
-    // Construir filtros
-    const filters: Record<string, any> = {};
-    if (estado && typeof estado === 'string') filters.estado = estado;
-    if (search && typeof search === 'string') filters.search = search;
-    if (fechaDesde && typeof fechaDesde === 'string') filters.fechaDesde = fechaDesde;
-    if (fechaHasta && typeof fechaHasta === 'string') filters.fechaHasta = fechaHasta;
-    if (galpon && typeof galpon === 'string') filters.galpon = galpon;
-    if (jaula && typeof jaula === 'string') filters.jaula = jaula;
-    
-    // Configurar paginación
-    const pagination = {
-      page: Math.max(1, Number(page)),
-      limit: Math.min(100, Math.max(1, Number(limit)))
-    };
-    
-    const result = await prenezService.getAllPaginated(filters, pagination);
-    
-    res.status(200).json({
-      success: true,
-      data: result.preneces,
-      pagination: result.pagination,
-      filters: filters,
-      message: `${result.pagination.total} preñeces encontradas`
-    });
-  } catch (error: any) {
-    console.error('Error al obtener preñeces:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Error al obtener preñeces', 
-      error: error?.message || 'Error desconocido'
-    });
-  }
-};
+export const getAll = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const validatedQuery = PrenezQuerySchema.parse(req.query);
+  
+  const result = await prenezService.getAllPaginated(validatedQuery, {
+    page: validatedQuery.page,
+    limit: validatedQuery.limit
+  });
+  
+  paginatedResponse(
+    res,
+    result.preneces,
+    result.pagination,
+    `${result.pagination.total} preñeces encontradas`
+  );
+});
 
 // Obtener preñeces activas
 export const getActivas = async (req: Request, res: Response): Promise<void> => {
@@ -72,40 +56,23 @@ export const getActivas = async (req: Request, res: Response): Promise<void> => 
 };
 
 // Obtener preñez por ID
-export const getById = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      res.status(400).json({
-        success: false,
-        message: 'ID de preñez inválido'
-      });
-      return;
-    }
+export const getById = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { id } = IdParamSchema.parse(req.params);
 
-    const prenez = await prenezService.getById(id);
-    if (!prenez) {
-      res.status(404).json({
-        success: false,
-        message: 'Preñez no encontrada'
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      data: prenez,
-      message: 'Preñez obtenida exitosamente'
-    });
-  } catch (error: any) {
-    console.error('Error al obtener preñez:', error);
-    res.status(500).json({ 
+  const prenez = await prenezService.getById(id);
+  if (!prenez) {
+    res.status(404).json({
       success: false,
-      message: 'Error al obtener preñez', 
-      error: error?.message || 'Error desconocido'
+      message: 'Preñez no encontrada',
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      statusCode: 404
     });
+    return;
   }
-};
+
+  successResponse(res, prenez, 'Preñez obtenida exitosamente');
+});
 
 // Crear nueva preñez
 export const create = async (req: Request, res: Response): Promise<void> => {
@@ -614,12 +581,12 @@ export const getRecomendaciones = async (req: Request, res: Response): Promise<v
       data: recomendaciones,
       message: `${recomendaciones.recomendaciones.length} recomendaciones reproductivas encontradas`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al obtener recomendaciones reproductivas:', error);
     res.status(500).json({ 
       success: false,
       message: 'Error al obtener recomendaciones reproductivas', 
-      error: error?.message || 'Error desconocido'
+      error: error instanceof Error ? error.message : 'Error desconocido'
     });
   }
 };

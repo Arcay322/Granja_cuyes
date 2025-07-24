@@ -3,11 +3,57 @@ import * as camadasService from '../../services/reproduccion/camadas.service';
 
 export const getAllCamadas = async (req: Request, res: Response) => {
   try {
-    const { fechaNacimiento, numVivos, numMuertos, padreId, madreId, prenezId, numMachos, numHembras, crearCuyes } = req.body;
+    const camadas = await camadasService.getAllCamadas();
+    res.status(200).json({
+      success: true,
+      data: camadas,
+      message: 'Camadas obtenidas exitosamente'
+    });
+  } catch (error) {
+    console.error('Error al obtener camadas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener camadas',
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+};
 
+export const getCamadaById = async (req: Request, res: Response) => {
   try {
-    const { fechaNacimiento, numVivos, numMuertos, padreId, madreId, prenezId, numMachos, numHembras, crearCuyes } = req.body;
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de camada inválido'
+      });
+    }
 
+    const camada = await camadasService.getCamadaById(id);
+    
+    if (!camada) {
+      return res.status(404).json({
+        success: false,
+        message: 'Camada no encontrada'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: camada,
+      message: 'Camada obtenida exitosamente'
+    });
+  } catch (error) {
+    console.error('Error al obtener camada:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener camada',
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    });
+  }
+};
+
+export const createCamada = async (req: Request, res: Response) => {
   try {
     const { fechaNacimiento, numVivos, numMuertos, padreId, madreId, prenezId, numMachos, numHembras, crearCuyes } = req.body;
 
@@ -18,12 +64,14 @@ export const getAllCamadas = async (req: Request, res: Response) => {
         message: 'La fecha de nacimiento es requerida'
       });
     }
+    
     if (numVivos < 0 || numMuertos < 0) {
       return res.status(400).json({
         success: false,
         message: 'Los números de crías no pueden ser negativos'
       });
     }
+    
     // Validar distribución de sexos si se van a crear cuyes
     if (crearCuyes && numVivos > 0) {
       if ((numMachos === undefined || numMachos === null) && numMachos !== 0) {
@@ -45,6 +93,7 @@ export const getAllCamadas = async (req: Request, res: Response) => {
         });
       }
     }
+    
     const camadaData = {
       fechaNacimiento: new Date(fechaNacimiento + 'T00:00:00.000Z'),
       numVivos,
@@ -53,11 +102,13 @@ export const getAllCamadas = async (req: Request, res: Response) => {
       madreId: madreId || null,
       prenezId: prenezId || null
     };
+    
     const result = await camadasService.createCamadaConCrias(camadaData, {
       crearCuyes: crearCuyes || false,
       numMachos: numMachos || 0,
       numHembras: numHembras || 0
     });
+    
     res.status(201).json({
       success: true,
       data: result.camada,
@@ -80,55 +131,16 @@ export const getAllCamadas = async (req: Request, res: Response) => {
       error: errorMessage
     });
   }
-    if (!numHembras && numHembras !== 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Debe especificar el número de hembras' 
-      });
-    }
-    if (numMachos + numHembras !== numVivos) {
-      return res.status(400).json({ 
-        success: false,
-        message: `La suma de machos (${numMachos}) y hembras (${numHembras}) debe ser igual al número de crías vivas (${numVivos})` 
-      });
-    }
-  }
-  const camadaData = {
-    fechaNacimiento: new Date(fechaNacimiento + 'T00:00:00.000Z'),
-    numVivos,
-    numMuertos,
-    padreId: padreId || null,
-    madreId: madreId || null,
-    prenezId: prenezId || null
-  };
+};
+
+export const updateCamada = async (req: Request, res: Response) => {
   try {
-    const result = await camadasService.createCamadaConCrias(camadaData, {
-      crearCuyes: crearCuyes || false,
-      numMachos: numMachos || 0,
-      numHembras: numHembras || 0
-    });
-    res.status(201).json({
-      success: true,
-      data: result.camada,
-      criasCreadas: result.criasCreadas || 0,
-      message: `Camada creada exitosamente${result.criasCreadas ? ` con ${result.criasCreadas} crías generadas automáticamente` : ''}`
-    });
-  } catch (error: any) {
-    // Si el error es por espacio insuficiente en la jaula, devolver 409
-    if (typeof error?.message === 'string' && error.message.includes('No hay espacio suficiente en la jaula')) {
-      return res.status(409).json({
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({
         success: false,
-        message: error.message
+        message: 'ID de camada inválido'
       });
-    }
-    console.error('Error al crear camada:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    res.status(500).json({ 
-      success: false,
-      message: 'Error al crear camada',
-      error: errorMessage
-    });
-  }
     }
 
     const { fechaNacimiento, numVivos, numMuertos, padreId, madreId } = req.body;

@@ -19,10 +19,26 @@ import EstadisticasReproduccionWidget from './EstadisticasReproduccionWidget';
 import RecomendacionesReproductivasWidget from './RecomendacionesReproductivasWidget';
 import AlertasReproduccionWidget from './AlertasReproduccionWidget';
 
-// Componente auxiliar para estadísticas
-function EstadisticasCuyDialog({ open, onClose, cuyId, tipo }: { open: boolean; onClose: () => void; cuyId?: string; tipo: 'madre' | 'padre' }) {
+// Improved auxiliary component with proper types
+interface CuyStats {
+  raza: string;
+  edad: number;
+  peso: number;
+  totalPreneces: number;
+  prenecesExitosas: number;
+  tasaExito: number;
+}
+
+interface EstadisticasCuyDialogProps {
+  open: boolean;
+  onClose: () => void;
+  cuyId?: string;
+  tipo: 'madre' | 'padre';
+}
+
+function EstadisticasCuyDialog({ open, onClose, cuyId, tipo }: EstadisticasCuyDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<CuyStats | null>(null);
   useEffect(() => {
     if (open && cuyId) {
       setLoading(true);
@@ -69,26 +85,24 @@ interface ReproduccionManagerProps {
   initialView?: 'prenez' | 'camadas';
 }
 
+// Improved TypeScript interfaces
+interface AnimalInfo {
+  id: number;
+  raza: string;
+  galpon: string;
+  jaula: string;
+}
+
 interface Prenez {
   id: number;
   madreId: number;
-  padreId?: number;
+  padreId?: number | null;
   fechaPrenez: string;
   fechaProbableParto: string;
-  notas?: string;
-  estado: string;
-  madre?: {
-    id: number;
-    raza: string;
-    galpon: string;
-    jaula: string;
-  };
-  padre?: {
-    id: number;
-    raza: string;
-    galpon: string;
-    jaula: string;
-  };
+  notas?: string | null;
+  estado: 'activa' | 'completada' | 'fallida';
+  madre?: AnimalInfo;
+  padre?: AnimalInfo;
 }
 
 interface Camada {
@@ -96,20 +110,34 @@ interface Camada {
   fechaNacimiento: string;
   numVivos: number;
   numMuertos: number;
-  padreId?: number;
-  madreId?: number;
-  madre?: {
-    id: number;
-    raza: string;
-    galpon: string;
-    jaula: string;
-  };
-  padre?: {
-    id: number;
-    raza: string;
-    galpon: string;
-    jaula: string;
-  };
+  padreId?: number | null;
+  madreId?: number | null;
+  madre?: AnimalInfo;
+  padre?: AnimalInfo;
+}
+
+interface FormErrors {
+  madreId?: string;
+  fechaPrenez?: string;
+  numVivos?: string;
+  numMuertos?: string;
+}
+
+interface PrenezFormData {
+  madreId: string;
+  padreId: string;
+  fechaPrenez: string;
+  notas: string;
+}
+
+interface CamadaFormData {
+  fechaNacimiento: string;
+  numVivos: string;
+  numMuertos: string;
+  madreId: string;
+  padreId: string;
+  numMachos: string;
+  numHembras: string;
 }
 
 const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
@@ -526,7 +554,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
     }
   };
 
-  const handleSelectReproductor = (reproductor: any) => {
+  const handleSelectReproductor = (reproductor: unknown) => {
     if (reproductorDialogType === 'madre') {
       setPrenezFormData(prev => ({ ...prev, madreId: reproductor.id.toString() }));
       setSelectedMadreId(reproductor.id);
@@ -545,41 +573,111 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
     }
   };
 
-  // Tablas
+  // Tablas responsive
   const renderPrenezTable = () => (
-    <TableContainer component={Paper}>
-      <Table>
+    <TableContainer 
+      component={Paper} 
+      sx={{ 
+        overflowX: 'auto',
+        '& .MuiTable-root': {
+          minWidth: { xs: 800, md: 'auto' }
+        }
+      }}
+    >
+      <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Madre</TableCell>
-            <TableCell>Padre</TableCell>
-            <TableCell>Fecha Preñez</TableCell>
-            <TableCell>Fecha Probable Parto</TableCell>
-            <TableCell>Estado</TableCell>
-            <TableCell>Acciones</TableCell>
+            <TableCell sx={{ minWidth: 60 }}>ID</TableCell>
+            <TableCell sx={{ minWidth: { xs: 150, md: 200 } }}>Madre</TableCell>
+            <TableCell sx={{ minWidth: { xs: 150, md: 200 } }}>Padre</TableCell>
+            <TableCell sx={{ minWidth: { xs: 120, md: 140 } }}>F. Preñez</TableCell>
+            <TableCell sx={{ minWidth: { xs: 120, md: 140 } }}>F. Parto</TableCell>
+            <TableCell sx={{ minWidth: 100 }}>Estado</TableCell>
+            <TableCell sx={{ minWidth: 100, textAlign: 'center' }}>Acciones</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {preneces.map((prenez) => (
-            <TableRow key={prenez.id}>
-              <TableCell>{prenez.id}</TableCell>
+            <TableRow key={prenez.id} hover>
+              <TableCell sx={{ fontWeight: 'medium' }}>{prenez.id}</TableCell>
               <TableCell>
-                {prenez.madre ? `${prenez.madre.raza} (${prenez.madre.galpon}-${prenez.madre.jaula})` : `ID: ${prenez.madreId}`}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    {prenez.madre ? prenez.madre.raza : `ID: ${prenez.madreId}`}
+                  </Typography>
+                  {prenez.madre && (
+                    <Typography variant="caption" color="text.secondary">
+                      {prenez.madre.galpon}-{prenez.madre.jaula}
+                    </Typography>
+                  )}
+                </Box>
               </TableCell>
               <TableCell>
-                {prenez.padre ? `${prenez.padre.raza} (${prenez.padre.galpon}-${prenez.padre.jaula})` : prenez.padreId ? `ID: ${prenez.padreId}` : 'N/A'}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    {prenez.padre ? prenez.padre.raza : prenez.padreId ? `ID: ${prenez.padreId}` : 'N/A'}
+                  </Typography>
+                  {prenez.padre && (
+                    <Typography variant="caption" color="text.secondary">
+                      {prenez.padre.galpon}-{prenez.padre.jaula}
+                    </Typography>
+                  )}
+                </Box>
               </TableCell>
-              <TableCell>{new Date(prenez.fechaPrenez).toLocaleDateString()}</TableCell>
-              <TableCell>{new Date(prenez.fechaProbableParto).toLocaleDateString()}</TableCell>
-              <TableCell>{prenez.estado}</TableCell>
               <TableCell>
-                <IconButton onClick={() => handleOpenPrenezForm(prenez)} size="small">
-                  <Edit />
-                </IconButton>
-                <IconButton onClick={() => handleDelete(prenez.id, 'prenez')} size="small" color="error">
-                  <Delete />
-                </IconButton>
+                <Typography variant="body2">
+                  {new Date(prenez.fechaPrenez).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit'
+                  })}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2">
+                  {new Date(prenez.fechaProbableParto).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit'
+                  })}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: prenez.estado === 'activa' ? 'success.main' : 
+                           prenez.estado === 'completada' ? 'info.main' : 'error.main',
+                    fontWeight: 'medium'
+                  }}
+                >
+                  {prenez.estado}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                  <IconButton 
+                    onClick={() => handleOpenPrenezForm(prenez)} 
+                    size="small"
+                    sx={{ 
+                      minWidth: { xs: 32, md: 40 },
+                      minHeight: { xs: 32, md: 40 }
+                    }}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => handleDelete(prenez.id, 'prenez')} 
+                    size="small" 
+                    color="error"
+                    sx={{ 
+                      minWidth: { xs: 32, md: 40 },
+                      minHeight: { xs: 32, md: 40 }
+                    }}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Box>
               </TableCell>
             </TableRow>
           ))}
@@ -589,39 +687,98 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
   );
 
   const renderCamadasTable = () => (
-    <TableContainer component={Paper}>
-      <Table>
+    <TableContainer 
+      component={Paper}
+      sx={{ 
+        overflowX: 'auto',
+        '& .MuiTable-root': {
+          minWidth: { xs: 700, md: 'auto' }
+        }
+      }}
+    >
+      <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Madre</TableCell>
-            <TableCell>Padre</TableCell>
-            <TableCell>Fecha Nacimiento</TableCell>
-            <TableCell>Vivos</TableCell>
-            <TableCell>Muertos</TableCell>
-            <TableCell>Acciones</TableCell>
+            <TableCell sx={{ minWidth: 60 }}>ID</TableCell>
+            <TableCell sx={{ minWidth: { xs: 150, md: 200 } }}>Madre</TableCell>
+            <TableCell sx={{ minWidth: { xs: 150, md: 200 } }}>Padre</TableCell>
+            <TableCell sx={{ minWidth: { xs: 120, md: 140 } }}>F. Nacimiento</TableCell>
+            <TableCell sx={{ minWidth: 80, textAlign: 'center' }}>Vivos</TableCell>
+            <TableCell sx={{ minWidth: 80, textAlign: 'center' }}>Muertos</TableCell>
+            <TableCell sx={{ minWidth: 100, textAlign: 'center' }}>Acciones</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {camadas.map((camada) => (
-            <TableRow key={camada.id}>
-              <TableCell>{camada.id}</TableCell>
+            <TableRow key={camada.id} hover>
+              <TableCell sx={{ fontWeight: 'medium' }}>{camada.id}</TableCell>
               <TableCell>
-                {camada.madre ? `${camada.madre.raza} (${camada.madre.galpon}-${camada.madre.jaula})` : camada.madreId ? `ID: ${camada.madreId}` : 'N/A'}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    {camada.madre ? camada.madre.raza : camada.madreId ? `ID: ${camada.madreId}` : 'N/A'}
+                  </Typography>
+                  {camada.madre && (
+                    <Typography variant="caption" color="text.secondary">
+                      {camada.madre.galpon}-{camada.madre.jaula}
+                    </Typography>
+                  )}
+                </Box>
               </TableCell>
               <TableCell>
-                {camada.padre ? `${camada.padre.raza} (${camada.padre.galpon}-${camada.padre.jaula})` : camada.padreId ? `ID: ${camada.padreId}` : 'N/A'}
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                    {camada.padre ? camada.padre.raza : camada.padreId ? `ID: ${camada.padreId}` : 'N/A'}
+                  </Typography>
+                  {camada.padre && (
+                    <Typography variant="caption" color="text.secondary">
+                      {camada.padre.galpon}-{camada.padre.jaula}
+                    </Typography>
+                  )}
+                </Box>
               </TableCell>
-              <TableCell>{new Date(camada.fechaNacimiento).toLocaleDateString()}</TableCell>
-              <TableCell>{camada.numVivos}</TableCell>
-              <TableCell>{camada.numMuertos}</TableCell>
               <TableCell>
-                <IconButton onClick={() => handleOpenCamadaForm(camada)} size="small">
-                  <Edit />
-                </IconButton>
-                <IconButton onClick={() => handleDelete(camada.id, 'camada')} size="small" color="error">
-                  <Delete />
-                </IconButton>
+                <Typography variant="body2">
+                  {new Date(camada.fechaNacimiento).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit'
+                  })}
+                </Typography>
+              </TableCell>
+              <TableCell sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium' }}>
+                  {camada.numVivos}
+                </Typography>
+              </TableCell>
+              <TableCell sx={{ textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium' }}>
+                  {camada.numMuertos}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                  <IconButton 
+                    onClick={() => handleOpenCamadaForm(camada)} 
+                    size="small"
+                    sx={{ 
+                      minWidth: { xs: 32, md: 40 },
+                      minHeight: { xs: 32, md: 40 }
+                    }}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => handleDelete(camada.id, 'camada')} 
+                    size="small" 
+                    color="error"
+                    sx={{ 
+                      minWidth: { xs: 32, md: 40 },
+                      minHeight: { xs: 32, md: 40 }
+                    }}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Box>
               </TableCell>
             </TableRow>
           ))}
@@ -640,14 +797,14 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
 
       {/* Dashboard de widgets cuando showStats está habilitado */}
       {showStats && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} md={4}>
+        <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
             <EstadisticasReproduccionWidget />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
             <AlertasReproduccionWidget />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, sm: 12, lg: 4 }}>
             <RecomendacionesReproductivasWidget />
           </Grid>
         </Grid>

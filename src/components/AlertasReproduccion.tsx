@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Card, CardContent, Avatar, Chip, Button, Alert,
-  CircularProgress, useTheme, alpha, Badge, Paper, Divider, IconButton, 
-  Tooltip, Stack, Collapse, List, ListItem, ListItemText, ListItemIcon
+  Box, Typography, Card, CardContent, Avatar, Chip, Alert,
+  CircularProgress, useTheme, alpha, Paper, IconButton, 
+  Tooltip, Collapse, List, ListItem, ListItemText, ListItemIcon
 } from '../utils/mui';
 import {
   NotificationImportant, Warning, Schedule, PregnantWoman, ChildCare,
@@ -19,7 +19,7 @@ interface AlertaReproduccion {
   diasRestantes?: number;
   supervivencia?: number;
   diasInactiva?: number;
-  data: any;
+  data: unknown;
 }
 
 interface AlertasData {

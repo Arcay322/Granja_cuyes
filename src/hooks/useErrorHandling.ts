@@ -1,30 +1,31 @@
 import { useState, useCallback, useRef } from 'react';
 import { useSystemNotifications } from './useSystemNotifications';
+import ErrorHandlingService from '../services/errorHandlingService';
+import { ErrorInfo } from '../components/common/ErrorDisplay';
 
 export interface ErrorState {
   hasError: boolean;
-  error: Error | null;
-  errorCode?: string;
-  context?: string;
-  timestamp?: Date;
+  error: ErrorInfo | null;
   retryCount: number;
 }
 
 export interface ErrorHandlingOptions {
   maxRetries?: number;
-  retryDelay?: number;
+  baseDelay?: number;
+  maxDelay?: number;
+  backoffMultiplier?: number;
   showNotification?: boolean;
-  logToConsole?: boolean;
-  logToService?: boolean;
+  autoRetry?: boolean;
 }
 
 export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
   const {
     maxRetries = 3,
-    retryDelay = 1000,
+    baseDelay = 1000,
+    maxDelay = 30000,
+    backoffMultiplier = 2,
     showNotification = true,
-    logToConsole = true,
-    logToService = false
+    autoRetry = false
   } = options;
 
   const [errorState, setErrorState] = useState<ErrorState>({
@@ -38,51 +39,25 @@ export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
   const showWarning = (systemNotifications as any).showWarning || (() => {});
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const logError = useCallback((error: Error, context?: string) => {
-    const errorData = {
-      message: error.message,
-      stack: error.stack,
-      context,
-      timestamp: new Date().toISOString(),
-      url: window.location.href,
-      userAgent: navigator.userAgent
-    };
-
-    if (logToConsole) {
-      console.error('Error logged:', errorData);
-    }
-
-    if (logToService) {
-      // Send to external logging service
-      fetch('/api/errors/log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(errorData)
-      }).catch(logError => {
-        console.error('Failed to log error to service:', logError);
-      });
-    }
-  }, [logToConsole, logToService]);
-
-  const handleError = useCallback((error: Error | string, context?: string) => {
-    const errorObj = typeof error === 'string' ? new Error(error) : error;
+  const handleError = useCallback((error: any, context?: Record<string, any>) => {
+    const errorInfo = ErrorHandlingService.createErrorInfo(error, context);
     
     setErrorState(prev => ({
       hasError: true,
-      error: errorObj,
-      context,
-      timestamp: new Date(),
+      error: {
+        ...errorInfo,
+        retryCount: prev.retryCount,
+        maxRetries
+      },
       retryCount: prev.retryCount
     }));
 
-    logError(errorObj, context);
+    ErrorHandlingService.logError(errorInfo);
 
     if (showNotification) {
-      showError(errorObj.message || 'Ha ocurrido un error inesperado');
+      showError(errorInfo.message);
     }
-  }, [logError, showNotification, showError]);
+  }, [maxRetries, showNotification, showError]);
 
   const clearError = useCallback(() => {
     if (retryTimeoutRef.current) {
@@ -105,7 +80,11 @@ export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
 
     setErrorState(prev => ({
       ...prev,
-      retryCount: prev.retryCount + 1
+      retryCount: prev.retryCount + 1,
+      error: prev.error ? {
+        ...prev.error,
+        retryCount: prev.retryCount + 1
+      } : null
     }));
 
     try {
@@ -113,30 +92,64 @@ export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
       clearError();
       return result;
     } catch (error) {
-      handleError(error as Error, 'retry_operation');
+      handleError(error, { 
+        operation: 'retry',
+        attempt: errorState.retryCount + 1 
+      });
       
-      // Schedule next retry
-      if (errorState.retryCount + 1 < maxRetries) {
+      // Schedule next retry if auto-retry is enabled
+      if (autoRetry && errorState.retryCount + 1 < maxRetries) {
+        const delay = Math.min(
+          baseDelay * Math.pow(backoffMultiplier, errorState.retryCount),
+          maxDelay
+        );
+        
         retryTimeoutRef.current = setTimeout(() => {
           retryOperation(operation);
-        }, retryDelay * Math.pow(2, errorState.retryCount)); // Exponential backoff
+        }, delay);
       }
     }
-  }, [errorState.retryCount, maxRetries, retryDelay, handleError, clearError, showWarning]);
+  }, [
+    errorState.retryCount, 
+    maxRetries, 
+    baseDelay, 
+    maxDelay, 
+    backoffMultiplier,
+    autoRetry,
+    handleError, 
+    clearError, 
+    showWarning
+  ]);
 
   const executeWithErrorHandling = useCallback(async <T>(
     operation: () => Promise<T>,
-    context?: string
+    context?: Record<string, any>
   ): Promise<T | null> => {
     try {
       clearError();
-      const result = await operation();
+      const result = await ErrorHandlingService.executeWithRetry(
+        operation,
+        {
+          maxRetries,
+          baseDelay,
+          maxDelay,
+          backoffMultiplier,
+          jitter: true
+        },
+        context
+      );
       return result;
     } catch (error) {
-      handleError(error as Error, context);
+      handleError(error, context);
       return null;
     }
-  }, [handleError, clearError]);
+  }, [handleError, clearError, maxRetries, baseDelay, maxDelay, backoffMultiplier]);
+
+  const reportError = useCallback(async (additionalInfo?: Record<string, any>) => {
+    if (errorState.error) {
+      await ErrorHandlingService.reportError(errorState.error, additionalInfo);
+    }
+  }, [errorState.error]);
 
   return {
     errorState,
@@ -144,6 +157,7 @@ export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
     clearError,
     retryOperation,
     executeWithErrorHandling,
+    reportError,
     hasError: errorState.hasError,
     error: errorState.error,
     canRetry: errorState.retryCount < maxRetries
@@ -152,91 +166,26 @@ export const useErrorHandling = (options: ErrorHandlingOptions = {}) => {
 
 // Hook específico para operaciones de API
 export const useApiErrorHandling = () => {
-  const { handleError, executeWithErrorHandling, ...rest } = useErrorHandling({
+  const errorHandling = useErrorHandling({
     maxRetries: 3,
-    retryDelay: 2000,
+    baseDelay: 2000,
+    maxDelay: 30000,
     showNotification: true,
-    logToService: true
+    autoRetry: false
   });
-
-  const handleApiError = useCallback((error: any, context?: string) => {
-    let errorMessage = 'Error de conexión con el servidor';
-    let errorCode = 'API_ERROR';
-
-    if (error.response) {
-      // Server responded with error status
-      const status = error.response.status;
-      const data = error.response.data;
-
-      switch (status) {
-        case 400:
-          errorMessage = data.message || 'Solicitud inválida';
-          errorCode = 'BAD_REQUEST';
-          break;
-        case 401:
-          errorMessage = 'No autorizado. Por favor, inicie sesión nuevamente';
-          errorCode = 'UNAUTHORIZED';
-          break;
-        case 403:
-          errorMessage = 'No tiene permisos para realizar esta acción';
-          errorCode = 'FORBIDDEN';
-          break;
-        case 404:
-          errorMessage = 'Recurso no encontrado';
-          errorCode = 'NOT_FOUND';
-          break;
-        case 422:
-          errorMessage = data.message || 'Datos de entrada no válidos';
-          errorCode = 'VALIDATION_ERROR';
-          break;
-        case 429:
-          errorMessage = 'Demasiadas solicitudes. Intente más tarde';
-          errorCode = 'RATE_LIMITED';
-          break;
-        case 500:
-          errorMessage = 'Error interno del servidor';
-          errorCode = 'INTERNAL_ERROR';
-          break;
-        case 503:
-          errorMessage = 'Servicio no disponible temporalmente';
-          errorCode = 'SERVICE_UNAVAILABLE';
-          break;
-        default:
-          errorMessage = data.message || `Error del servidor (${status})`;
-          errorCode = `HTTP_${status}`;
-      }
-    } else if (error.request) {
-      // Network error
-      errorMessage = 'Error de conexión. Verifique su conexión a internet';
-      errorCode = 'NETWORK_ERROR';
-    } else {
-      // Other error
-      errorMessage = error.message || 'Error desconocido';
-      errorCode = 'UNKNOWN_ERROR';
-    }
-
-    const apiError = new Error(errorMessage);
-    (apiError as any).code = errorCode;
-    (apiError as any).originalError = error;
-
-    handleError(apiError, context);
-  }, [handleError]);
 
   const executeApiCall = useCallback(async <T>(
     apiCall: () => Promise<T>,
-    context?: string
+    context?: Record<string, any>
   ): Promise<T | null> => {
-    try {
-      return await executeWithErrorHandling(apiCall, context);
-    } catch (error) {
-      handleApiError(error, context);
-      return null;
-    }
-  }, [executeWithErrorHandling, handleApiError]);
+    return errorHandling.executeWithErrorHandling(apiCall, {
+      ...context,
+      type: 'api_call'
+    });
+  }, [errorHandling]);
 
   return {
-    ...rest,
-    handleApiError,
+    ...errorHandling,
     executeApiCall
   };
 };
@@ -314,7 +263,7 @@ export const useFormValidation = () => {
 
 // Tipos para validación
 export interface ValidationRule {
-  validate: (value: any) => string | null;
+  validate: (value: unknown) => string | null;
 }
 
 // Reglas de validación comunes

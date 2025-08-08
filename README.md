@@ -197,8 +197,10 @@ npm run lint         # Linting
 npm run dev          # Servidor de desarrollo con nodemon
 npm run build        # Compilar TypeScript
 npm run start        # Ejecutar versión compilada
+npm run test         # Ejecutar tests con Jest
 npm run prisma:generate  # Generar cliente Prisma
 npm run prisma:migrate   # Ejecutar migraciones
+npm run prisma:reset     # Resetear base de datos (desarrollo)
 ```
 
 ## 🧪 Testing
@@ -210,6 +212,48 @@ npm run test
 ```
 - Los tests usan Jest y Supertest.
 - Los resultados se muestran en consola.
+- Configuración de base de datos de prueba separada.
+
+## 🔧 Estabilización del Proyecto
+
+### Cambios Recientes (Semana 1)
+El proyecto ha pasado por un proceso de estabilización que incluye:
+
+- ✅ **Corrección de errores TypeScript**: Eliminados 27+ errores de compilación
+- ✅ **Estabilización de base de datos**: Implementado patrón singleton para PrismaClient
+- ✅ **Servicios WebSocket**: Implementados métodos de broadcast faltantes
+- ✅ **Suite de pruebas**: Corregidos mocks y configuración de Jest
+- ✅ **Notificaciones**: Convertido servicio de toast a formato React apropiado
+
+### Configuración de Base de Datos Mejorada
+```bash
+# Resetear base de datos en desarrollo
+cd backend
+npx prisma migrate reset
+
+# Generar cliente Prisma actualizado
+npx prisma generate
+
+# Poblar con datos de prueba
+npx prisma db seed
+```
+
+### Variables de Entorno Actualizadas
+Asegúrate de tener estas variables en tu archivo `.env`:
+```env
+# Base de datos
+DATABASE_URL="postgresql://usuario:password@localhost:5432/cuyesdb"
+
+# Autenticación
+JWT_SECRET="tu_clave_secreta_muy_segura"
+
+# Configuración del servidor
+PORT=4000
+NODE_ENV=development
+
+# Logging
+LOG_LEVEL=info
+```
 
 ## 🏗️ Migraciones y Seeders
 

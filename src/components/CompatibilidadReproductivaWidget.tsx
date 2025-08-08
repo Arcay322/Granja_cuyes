@@ -48,12 +48,12 @@ const CompatibilidadReproductivaWidget = () => {
           api.get('/reproduccion/prenez/padres-disponibles')
         ]);
         
-        if (madresRes.data.success) {
-          setMadres(madresRes.data.data || []);
+        if ((madresRes.data as any).success) {
+          setMadres((madresRes.data as any).data || []);
         }
         
-        if (padresRes.data.success) {
-          setPadres(padresRes.data.data || []);
+        if ((padresRes.data as any).success) {
+          setPadres((padresRes.data as any).data || []);
         }
       } catch (error) {
         console.error('Error al cargar reproductores:', error);
@@ -85,10 +85,10 @@ const CompatibilidadReproductivaWidget = () => {
         padreId: Number(padreId)
       });
       
-      if (response.data.success) {
-        setCompatibilidad(response.data.data);
+      if ((response.data as any).success) {
+        setCompatibilidad((response.data as any).data);
       } else {
-        setError(response.data.message || 'Error al calcular compatibilidad');
+        setError((response.data as any).message || 'Error al calcular compatibilidad');
       }
     } catch (error) {
       console.error('Error al verificar compatibilidad:', error);

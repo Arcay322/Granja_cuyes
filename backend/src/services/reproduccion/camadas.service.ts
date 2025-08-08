@@ -1,12 +1,15 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { verificarEspacioEnJaula } from './jaulaCapacity.service';
 import { OptimizedCamada, PaginatedResult } from '../../types/reproduccion.types';
+import webSocketService from '../websocket/websocket.service';
+import { cacheInvalidation } from '../cache.service';
+import logger from '../../utils/logger';
 
 const prisma = new PrismaClient();
 
 // Optimized query to get all litters with related data in single query
 export const getAllCamadasPaginatedOptimized = async (
-  filters: Record<string, any>, 
+  filters: Record<string, unknown>, 
   pagination: { page: number; limit: number }
 ): Promise<PaginatedResult<OptimizedCamada>> => {
   try {
@@ -19,10 +22,10 @@ export const getAllCamadasPaginatedOptimized = async (
     if (filters.fechaDesde || filters.fechaHasta) {
       where.fechaNacimiento = {};
       if (filters.fechaDesde) {
-        where.fechaNacimiento.gte = new Date(filters.fechaDesde);
+        where.fechaNacimiento.gte = new Date(filters.fechaDesde as string);
       }
       if (filters.fechaHasta) {
-        where.fechaNacimiento.lte = new Date(filters.fechaHasta);
+        where.fechaNacimiento.lte = new Date(filters.fechaHasta as string);
       }
     }
 
@@ -166,7 +169,7 @@ export const getCamadaById = async (id: number) => {
   });
 };
 
-// Crear nueva camada y las crías correspondientes
+// Crear nueva camada y las crías correspondientes con notificaciones
 export const createCamada = async (data: {
   fechaNacimiento: Date | string;
   numVivos: number;
@@ -235,6 +238,13 @@ export const createCamada = async (data: {
     return { camada, crias };
   });
 
+  // Invalidar caché relacionado
+  cacheInvalidation.invalidateByDataChange('camada', 'create');
+
+  // Notificar via WebSocket
+  webSocketService.notifyDataChange('camada', 'created', result.camada);
+
+  logger.info(`Nueva camada creada: ${result.camada.id} con ${data.numVivos} crías`);
   return result.camada;
 };
 
@@ -403,10 +413,19 @@ export const updateCamada = async (
     console.log(`Actualizando camada #${id} con fecha: ${formattedData.fechaNacimiento}`);
   }
 
-  return prisma.camada.update({
+  const updatedCamada = await prisma.camada.update({
     where: { id },
     data: formattedData
   });
+
+  // Invalidar caché relacionado
+  cacheInvalidation.invalidateByDataChange('camada', 'update');
+
+  // Notificar via WebSocket
+  webSocketService.notifyDataChange('camada', 'updated', updatedCamada);
+
+  logger.info(`Camada actualizada: ${id}`);
+  return updatedCamada;
 };
 
 // Eliminar camada
@@ -422,7 +441,16 @@ export const deleteCamada = async (id: number) => {
   });
 
   // Eliminar la camada
-  return prisma.camada.delete({
+  const deletedCamada = await prisma.camada.delete({
     where: { id }
   });
+
+  // Invalidar caché relacionado
+  cacheInvalidation.invalidateByDataChange('camada', 'delete');
+
+  // Notificar via WebSocket
+  webSocketService.notifyDataChange('camada', 'deleted', { id });
+
+  logger.info(`Camada eliminada: ${id}`);
+  return deletedCamada;
 };

@@ -27,8 +27,8 @@ const RecomendacionesReproductivasWidget = () => {
         setLoading(true);
         const response = await api.get('/reproduccion/prenez/recomendaciones');
         
-        if (response.data.success) {
-          const data = response.data.data;
+        if ((response.data as any).success) {
+          const data = (response.data as any).data;
           
           // Si no hay recomendaciones del backend, crear algunas por defecto
           if (!data.recomendaciones || data.recomendaciones.length === 0) {

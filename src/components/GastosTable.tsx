@@ -293,6 +293,10 @@ const GastosTable = () => {
 
   const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
 
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>, id: number) => {
+    handleClick(event as any, id);
+  };
+
   // Funciones para acciones en lote
   const handleBulkDelete = async () => {
     setBulkActionLoading(true);
@@ -305,7 +309,7 @@ const GastosTable = () => {
       setSelectedIds([]);
       setShowBulkActions(false);
       fetchGastos();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al eliminar gastos:', err);
       toastService.error(
         'Error al Eliminar',
@@ -487,7 +491,7 @@ const GastosTable = () => {
                         <Checkbox
                           color="primary"
                           checked={isSelected}
-                          onChange={(event) => handleClick(event, gasto.id!)}
+                          onChange={(event) => handleCheckboxChange(event, gasto.id!)}
                           inputProps={{ 'aria-labelledby': `enhanced-table-checkbox-${gasto.id}` }}
                         />
                       </TableCell>
@@ -564,7 +568,7 @@ const GastosTable = () => {
         <Divider />
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={2.5}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField 
                 label="Concepto" 
                 name="concepto" 
@@ -585,7 +589,7 @@ const GastosTable = () => {
                 helperText={formErrors.concepto}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField 
                 label="Fecha" 
                 name="fecha" 
@@ -608,7 +612,7 @@ const GastosTable = () => {
                 helperText={formErrors.fecha}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField 
                 label="Monto" 
                 name="monto" 
@@ -632,7 +636,7 @@ const GastosTable = () => {
                 helperText={formErrors.monto}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required variant="outlined" size="small">
                 <InputLabel>Categoría</InputLabel>
                 <Select

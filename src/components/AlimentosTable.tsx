@@ -118,8 +118,8 @@ const AlimentosTable = () => {
     setSuccess(null);
     api.get('/alimentos')
       .then(res => {
-        setAlimentos(res.data);
-        setFilteredAlimentos(res.data);
+        setAlimentos((res.data as any) || []);
+        setFilteredAlimentos((res.data as any) || []);
         setLoading(false);
       })
       .catch(err => {
@@ -150,7 +150,7 @@ const AlimentosTable = () => {
     setLoadingProveedores(true);
     api.get('/proveedores')
       .then(res => {
-        setProveedores(res.data);
+        setProveedores((res.data as any) || []);
         setLoadingProveedores(false);
       })
       .catch(err => {
@@ -204,7 +204,7 @@ const AlimentosTable = () => {
     }
 
     // Ordenamiento
-    filtered = stableSort(filtered, getComparator(order, orderBy));
+    filtered = stableSort(filtered as any, getComparator(order, orderBy) as any);
     
     setFilteredAlimentos(filtered);
   };
@@ -990,7 +990,7 @@ const AlimentosTable = () => {
                   value={form.proveedorId || ''}
                   name="proveedorId"
                   label="Proveedor"
-                  onChange={handleChange}
+                  onChange={(e: any) => handleChange(e)}
                   required
                 >
                   {proveedores.map((proveedor) => (

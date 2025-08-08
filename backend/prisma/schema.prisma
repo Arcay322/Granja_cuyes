@@ -134,10 +134,11 @@ model Gasto {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
+  id         Int         @id @default(autoincrement())
+  email      String      @unique
+  password   String
+  createdAt  DateTime    @default(now())
+  exportJobs ExportJob[]
 }
 
 model Galpon {
@@ -175,4 +176,55 @@ model Prenez {
   estado             String    @default("activa")
   fechaCompletada    DateTime?
   camada             Camada?
+}
+
+model ExportJob {
+  id           String      @id @default(cuid())
+  userId       Int
+  templateId   String
+  format       ExportFormat
+  status       ExportStatus @default(PENDING)
+  parameters   Json?
+  options      Json?
+  progress     Int         @default(0)
+  errorMessage String?
+  createdAt    DateTime    @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  expiresAt    DateTime?
+  user         User        @relation(fields: [userId], references: [id])
+  files        ExportFile[]
+
+  @@index([userId, status])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+model ExportFile {
+  id                String    @id @default(cuid())
+  jobId             String
+  fileName          String
+  filePath          String
+  fileSize          BigInt
+  mimeType          String
+  downloadCount     Int       @default(0)
+  createdAt         DateTime  @default(now())
+  lastDownloadedAt  DateTime?
+  job               ExportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+enum ExportFormat {
+  PDF
+  EXCEL
+  CSV
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  TIMEOUT
 }

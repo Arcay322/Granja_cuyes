@@ -6,6 +6,7 @@ import {
 } from '../utils/mui';
 import { Search, Delete, Add } from '@mui/icons-material';
 import api from '../services/api';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface Cuy {
   id: number;
@@ -51,7 +52,9 @@ const CuySelector: React.FC<CuySelectorProps> = ({ selectedCuyes, onCuyesChange,
     try {
       setLoading(true);
       const response = await api.get('/cuyes/disponibles-venta');
-      setAvailableCuyes(response.data);
+      if (isSuccessfulApiResponse<Cuy[]>(response.data)) {
+        setAvailableCuyes(response.data.data);
+      }
       setError(null);
     } catch (error) {
       console.error('Error al cargar cuyes disponibles:', error);

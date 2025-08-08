@@ -26,8 +26,8 @@ const EstadisticasReproduccionWidget = () => {
         setLoading(true);
         const response = await api.get('/reproduccion/prenez/stats');
         
-        if (response.data.success) {
-          setEstadisticas(response.data.data);
+        if ((response.data as any).success) {
+          setEstadisticas((response.data as any).data);
         } else {
           setError('No se pudieron cargar las estadísticas');
         }

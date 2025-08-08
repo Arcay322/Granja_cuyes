@@ -24,7 +24,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import api from '../services/api';
-import es from 'date-fns/locale/es';
+import { es } from 'date-fns/locale/es';
 
 // Ajuste de estilo para los labels de Material UI
 const LABEL_STYLE = {
@@ -88,7 +88,7 @@ const CamadasTable = () => {
     setLoading(true);
     try {
       const response = await api.get('/reproduccion/camadas');
-      setCamadas(response.data);
+      setCamadas((response.data as any) || []);
       setLoading(false);
     } catch (error) {
       console.error('Error al cargar camadas:', error);
@@ -104,13 +104,13 @@ const CamadasTable = () => {
       console.log("🔄 Obteniendo cuyes desde la API...");
       const response = await api.get('/cuyes');
       
-      console.log(`📊 Recibidos ${response.data?.length || 0} cuyes del servidor`);
+      console.log(`📊 Recibidos ${(response.data as any)?.length || 0} cuyes del servidor`);
       
-      if (response.data && response.data.length > 0) {
+      if (response.data && (response.data as any).length > 0) {
         console.log('🔍 DIAGNÓSTICO DE CUYES RECIBIDOS:');
         
         // Verificar datos de todos los cuyes
-        const cuyesProcesados = response.data.map((cuy: any) => {
+        const cuyesProcesados = (response.data as any).map((cuy: any) => {
           // Asegurarse de que tenemos una fecha válida
           const fechaNacimiento = cuy.fechaNacimiento;
           console.log(`Cuy ID ${cuy.id}: Fecha original=${fechaNacimiento}, Sexo=${cuy.sexo}, Estado=${cuy.estado}`);
@@ -124,7 +124,7 @@ const CamadasTable = () => {
         });
         
         // Actualizar el estado con los cuyes recibidos sin modificar
-        setCuyes(response.data);
+        setCuyes((response.data as any) || []);
         
         console.log('✅ Cuyes actualizados en el estado');
       } else {
@@ -383,13 +383,13 @@ const CamadasTable = () => {
     }
     
     // Validar número de vivos
-    if (formData.numVivos === '' || formData.numVivos < 0) {
+    if ((formData.numVivos as any) === '' || formData.numVivos < 0) {
       newErrors.numVivos = 'Debe ingresar un número válido (mayor o igual a 0)';
       isValid = false;
     }
     
     // Validar número de muertos
-    if (formData.numMuertos === '' || formData.numMuertos < 0) {
+    if ((formData.numMuertos as any) === '' || formData.numMuertos < 0) {
       newErrors.numMuertos = 'Debe ingresar un número válido (mayor o igual a 0)';
       isValid = false;
     }
@@ -767,9 +767,9 @@ const CamadasTable = () => {
                 console.log("📡 DATOS CRUDOS DE LA API (PARA DEPURACIÓN):");
                 console.log(response.data);
                 
-                if (response.data && response.data.length > 0) {
+                if (response.data && (response.data as any).length > 0) {
                   // Mostrar el formato de fecha que viene directamente del servidor
-                  const primerCuy = response.data[0];
+                  const primerCuy = (response.data as any)[0];
                   console.log(`\n📝 MUESTRA DE DATOS RECIBIDOS:`);
                   console.log(`- Primer cuy ID: ${primerCuy.id}`);
                   console.log(`- Fecha de nacimiento (sin procesar): ${primerCuy.fechaNacimiento}`);
@@ -870,7 +870,7 @@ const CamadasTable = () => {
                     <Checkbox
                       color="primary"
                       checked={isSelected(camada.id)}
-                      onChange={(event) => handleClick(event, camada.id)}
+                      onClick={(event) => handleClick(event, camada.id)}
                       disabled={loading}
                       title={isSelected(camada.id) ? 'Deseleccionar' : 'Seleccionar'}
                     />
@@ -1091,10 +1091,9 @@ const CamadasTable = () => {
                     labelId="madre-label"
                     name="madreId"
                     value={formData.madreId}
-                    onChange={handleChange}
+                    onChange={(e: any) => handleChange(e)}
                     label="Madre"
                     displayEmpty
-                    placeholder=""
                     notched
                     renderValue={(selected) => {
                       if (!selected) return ""; // Campo vacío para evitar superposición
@@ -1224,10 +1223,9 @@ const CamadasTable = () => {
                     labelId="padre-label"
                     name="padreId"
                     value={formData.padreId}
-                    onChange={handleChange}
+                    onChange={(e: any) => handleChange(e)}
                     label="Padre (opcional)"
                     displayEmpty
-                    placeholder=""
                     notched
                     renderValue={(selected) => {
                       if (!selected) return ""; // Campo vacío para evitar superposición

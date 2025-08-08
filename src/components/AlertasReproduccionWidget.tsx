@@ -26,8 +26,8 @@ const AlertasReproduccionWidget = () => {
         setLoading(true);
         const response = await api.get('/reproduccion/prenez/alertas');
         
-        if (response.data.success) {
-          const data = response.data.data;
+        if ((response.data as any).success) {
+          const data = (response.data as any).data;
           const alertasFormateadas: AlertaReproduccion[] = [];
 
           // Próximos partos

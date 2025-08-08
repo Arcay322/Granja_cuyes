@@ -856,8 +856,8 @@ const GalponesManagerFixed: React.FC = () => {
                           borderRadius: 4,
                           bgcolor: alpha(theme.palette.grey[300], 0.3),
                           '& .MuiLinearProgress-bar': {
-                            bgcolor: jaula.ocupacion?.porcentajeOcupacion >= 100 ? '#f44336' :
-                                    jaula.ocupacion?.porcentajeOcupacion >= 80 ? '#ff9800' : '#4caf50'
+                            bgcolor: (jaula.ocupacion?.porcentajeOcupacion ?? 0) >= 100 ? '#f44336' :
+                                    (jaula.ocupacion?.porcentajeOcupacion ?? 0) >= 80 ? '#ff9800' : '#4caf50'
                           }
                         }}
                       />

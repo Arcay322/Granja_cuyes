@@ -35,12 +35,12 @@ export interface ApiErrorResponse {
 export const validateSchema = (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      const dataToValidate = source === 'body' ? req.body : 
-                           source === 'query' ? req.query : 
-                           req.params;
+      const dataToValidate = source === 'body' ? req.body :
+        source === 'query' ? req.query :
+          req.params;
 
       const validatedData = schema.parse(dataToValidate);
-      
+
       // Replace the original data with validated data
       if (source === 'body') {
         req.body = validatedData;
@@ -49,7 +49,7 @@ export const validateSchema = (schema: ZodSchema, source: 'body' | 'query' | 'pa
       } else {
         req.params = validatedData as any;
       }
-      
+
       next();
     } catch (error) {
       if (error instanceof ZodError) {
@@ -70,7 +70,7 @@ export const validateSchema = (schema: ZodSchema, source: 'body' | 'query' | 'pa
 
         return res.status(400).json(errorResponse);
       }
-      
+
       // Handle unexpected validation errors
       const errorResponse: ApiErrorResponse = {
         success: false,
@@ -222,9 +222,9 @@ export const successResponse = (res: Response, data: any, message: string, statu
 
 // Pagination response helper
 export const paginatedResponse = (
-  res: Response, 
-  data: any[], 
-  pagination: any, 
+  res: Response,
+  data: any[],
+  pagination: any,
   message: string,
   statusCode: number = 200
 ) => {

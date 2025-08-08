@@ -3,6 +3,7 @@ import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography,
   Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton,
@@ -152,19 +153,22 @@ const SaludTable = () => {
     api.get('/salud')
       .then(res => {
         // Asegurarse de que los datos están formateados correctamente
-        const formattedData = res.data.map((registro: any) => ({
-          ...registro,
-          cuyId: Number(registro.cuyId),
-          fecha: registro.fecha // La fecha ya viene en formato ISO desde el backend
-        }));
-        setRegistros(formattedData);
-        setError(null);
+        if (isSuccessfulApiResponse<any[]>(res.data)) {
+          const formattedData = res.data.data.map((registro: any) => ({
+            ...registro,
+            cuyId: Number(registro.cuyId),
+            fecha: registro.fecha // La fecha ya viene en formato ISO desde el backend
+          }));
+          setRegistros(formattedData);
+          setError(null);
+        }
       })
       .catch(err => {
         console.error("Error al cargar registros de salud:", err);
         setError("No se pudieron cargar los registros de salud. Por favor, intenta de nuevo.");
       })
-      .finally(() => {
+      .catch(() => {})
+      .then(() => {
         setLoading(false);
       });
   };
@@ -172,7 +176,9 @@ const SaludTable = () => {
   const fetchCuyes = async () => {
     try {
       const response = await api.get('/cuyes');
-      setCuyesOptions(response.data);
+      if (isSuccessfulApiResponse<any[]>(response.data)) {
+        setCuyesOptions(response.data.data);
+      }
     } catch (err) {
       console.error("Error al cargar lista de cuyes:", err);
     }
@@ -387,6 +393,10 @@ const SaludTable = () => {
 
   const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
 
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>, id: number) => {
+    handleClick(event as any, id);
+  };
+
   // Funciones para acciones en lote
   const handleBulkDelete = async () => {
     setBulkActionLoading(true);
@@ -399,7 +409,7 @@ const SaludTable = () => {
       setSelectedIds([]);
       setShowBulkActions(false);
       fetchRegistros();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al eliminar registros:', err);
       toastService.error(
         'Error al Eliminar',
@@ -613,7 +623,7 @@ const SaludTable = () => {
                         <Checkbox
                           color="primary"
                           checked={isSelected}
-                          onChange={(e) => handleClick(e, r.id!)}
+                          onChange={(e) => handleCheckboxChange(e, r.id!)}
                           sx={{ p: 0.5 }}
                         />
                       </TableCell>

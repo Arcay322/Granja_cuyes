@@ -13,6 +13,7 @@ import api from '../services/api';
 import toastService from '../services/toastService';
 import { useDeleteConfirmation } from '../hooks/useDeleteConfirmation';
 import ConfirmDeleteDialog from './ConfirmDeleteDialog';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface Galpon {
   id: number;
@@ -150,7 +151,9 @@ const GalponesManager: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/galpones/resumen');
-      setGalpones(response.data.data || response.data);
+      if (isSuccessfulApiResponse<any[]>(response.data)) {
+        setGalpones(response.data.data);
+      }
     } catch (error) {
       console.error('Error al obtener galpones:', error);
       toastService.error('Error', 'No se pudieron cargar los galpones');
@@ -162,7 +165,9 @@ const GalponesManager: React.FC = () => {
   const fetchGalponDetails = async (id: number) => {
     try {
       const response = await api.get(`/galpones/${id}`);
-      setSelectedGalpon(response.data.data || response.data);
+      if (isSuccessfulApiResponse<any>(response.data)) {
+        setSelectedGalpon(response.data.data);
+      }
     } catch (error) {
       console.error('Error al obtener detalles del galpón:', error);
       toastService.error('Error', 'No se pudieron cargar los detalles del galpón');
@@ -216,7 +221,9 @@ const GalponesManager: React.FC = () => {
     setSelectedGalpon(galpon);
     try {
       const response = await api.get(`/galpones/${galpon.id}`);
-      setSelectedGalpon(response.data.data || response.data);
+      if (isSuccessfulApiResponse<any>(response.data)) {
+        setSelectedGalpon(response.data.data);
+      }
       setOpenEstadisticasDialog(true);
     } catch (error) {
       console.error('Error al obtener detalles del galpón:', error);
@@ -224,7 +231,7 @@ const GalponesManager: React.FC = () => {
     }
   };
 
-  const handleGalponChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleGalponChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     if (name) {
       setGalponForm(prev => ({ ...prev, [name]: value }));
@@ -237,7 +244,14 @@ const GalponesManager: React.FC = () => {
     }
   };
 
-  const handleJaulaChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleGalponSelectChange = (e: any) => {
+    const { name, value } = e.target;
+    if (name) {
+      setGalponForm(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleJaulaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     if (name) {
       setJaulaForm(prev => ({ ...prev, [name]: value }));
@@ -247,6 +261,13 @@ const GalponesManager: React.FC = () => {
           [name]: ''
         }));
       }
+    }
+  };
+
+  const handleJaulaSelectChange = (e: any) => {
+    const { name, value } = e.target;
+    if (name) {
+      setJaulaForm(prev => ({ ...prev, [name]: value }));
     }
   };
 
@@ -324,7 +345,7 @@ const GalponesManager: React.FC = () => {
       }
     } catch (error: unknown) {
       console.error('Error al guardar jaula:', error);
-      const errorMsg = error.response?.data?.error || 'No se pudo guardar la jaula';
+      const errorMsg = (error as any).response?.data?.error || 'No se pudo guardar la jaula';
       toastService.error('Error al guardar', errorMsg);
     } finally {
       setLoading(false);
@@ -492,7 +513,7 @@ const GalponesManager: React.FC = () => {
                   <LinearProgress
                     variant="determinate"
                     value={Math.min(galpon.porcentajeOcupacion, 100)}
-                    color={getOcupacionColor(galpon.porcentajeOcupacion) as unknown}
+                    color={getOcupacionColor(galpon.porcentajeOcupacion)}
                     sx={{ height: 8, borderRadius: 4 }}
                   />
                 </Box>
@@ -514,7 +535,7 @@ const GalponesManager: React.FC = () => {
 
                 {/* Alertas */}
                 {(galpon.alertas.sobrepoblacion || galpon.alertas.cuyesEnfermos > 0 || galpon.alertas.sinCuyes) && (
-                  <Alert severity="warning" size="small" sx={{ mb: 2 }}>
+                  <Alert severity="warning" sx={{ mb: 2 }}>
                     {galpon.alertas.sobrepoblacion && <div>⚠️ Sobrepoblación detectada</div>}
                     {galpon.alertas.cuyesEnfermos > 0 && <div>🏥 {galpon.alertas.cuyesEnfermos} cuyes enfermos</div>}
                     {galpon.alertas.sinCuyes && <div>📭 Galpón vacío</div>}
@@ -636,7 +657,7 @@ const GalponesManager: React.FC = () => {
                 <Select
                   name="estado"
                   value={galponForm.estado}
-                  onChange={handleGalponChange}
+                  onChange={handleGalponSelectChange}
                   label="Estado"
                 >
                   {estadoOptions.map(option => (
@@ -725,7 +746,7 @@ const GalponesManager: React.FC = () => {
                 <Select
                   name="tipo"
                   value={jaulaForm.tipo}
-                  onChange={handleJaulaChange}
+                  onChange={handleJaulaSelectChange}
                   label="Tipo"
                 >
                   {tipoJaulaOptions.map(option => (
@@ -740,7 +761,7 @@ const GalponesManager: React.FC = () => {
                 <Select
                   name="estado"
                   value={jaulaForm.estado}
-                  onChange={handleJaulaChange}
+                  onChange={handleJaulaSelectChange}
                   label="Estado"
                 >
                   {estadoOptions.map(option => (

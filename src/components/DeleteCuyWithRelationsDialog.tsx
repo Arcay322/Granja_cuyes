@@ -18,6 +18,7 @@ import {
   Divider,
   CircularProgress
 } from '../utils/mui';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 import {
   ExpandMore,
   Warning,
@@ -88,7 +89,7 @@ const DeleteCuyWithRelationsDialog: React.FC<DeleteCuyWithRelationsDialogProps> 
       const { default: api } = await import('../services/api');
       const response = await api.get(`/cuyes/${cuyId}/verificar-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         setVerificacion(response.data.data);
       } else {
         console.error('Error al verificar relaciones');
@@ -109,7 +110,7 @@ const DeleteCuyWithRelationsDialog: React.FC<DeleteCuyWithRelationsDialogProps> 
       const { default: api } = await import('../services/api');
       const response = await api.delete(`/cuyes/${cuyId}/eliminar-con-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         onDeleteConfirmed(cuyId);
         onClose();
       } else {

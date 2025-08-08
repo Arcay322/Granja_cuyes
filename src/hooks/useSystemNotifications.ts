@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useNotifications } from '../contexts/NotificationContext';
 import api from '../services/api';
+import { isSuccessfulApiResponse, extractErrorMessage } from '../utils/typeGuards';
+import { CuyesResponse, HistorialSaludResponse, Cuy, HistorialSalud } from '../types/api';
 
 // Variable global para evitar múltiples instancias del sistema de notificaciones
 let systemNotificationInstance: string | null = null;
@@ -109,11 +111,11 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
   const checkVacunacionesPendientes = async () => {
     try {
       const response = await api.get('/cuyes');
-      const cuyes = response.data;
+      const cuyes = isSuccessfulApiResponse<Cuy[]>(response.data) ? response.data.data : [];
       
       // Obtener registros de salud para verificar vacunaciones
       const saludResponse = await api.get('/salud');
-      const registrosSalud = saludResponse.data;
+      const registrosSalud = isSuccessfulApiResponse<HistorialSalud[]>(saludResponse.data) ? saludResponse.data.data : [];
       
       const today = new Date();
       let cuyesSinVacunar = 0;
@@ -227,7 +229,7 @@ export const useSystemNotifications = (config: SystemNotificationConfig = defaul
   const checkProximosPartos = async () => {
     try {
       const response = await api.get('/reproduccion/prenez');
-      const preneces = response.data;
+      const preneces = isSuccessfulApiResponse<any[]>(response.data) ? response.data.data : [];
       
       const today = new Date();
       const checkDate = new Date();

@@ -1,0 +1,56 @@
+Gráfico,Tipo,Categoría,Valor
+Ingresos vs Gastos Mensuales,bar,,
+,Ingresos,Dic 2024,0
+,Ingresos,Ene 2025,180
+,Ingresos,Feb 2025,240
+,Ingresos,Mar 2025,350
+,Ingresos,Abr 2025,420
+,Ingresos,May 2025,300
+,Ingresos,Jun 2025,1080
+,Ingresos,Jul 2025,0
+,Ingresos,Ago 2025,0
+,Ingresos,Sep 2025,0
+,Ingresos,Oct 2025,0
+,Ingresos,Nov 2025,0
+,Ingresos,Dic 2025,0
+,Gastos,Dic 2024,0
+,Gastos,Ene 2025,430
+,Gastos,Feb 2025,350
+,Gastos,Mar 2025,45
+,Gastos,Abr 2025,500
+,Gastos,May 2025,415
+,Gastos,Jun 2025,350
+,Gastos,Jul 2025,0
+,Gastos,Ago 2025,0
+,Gastos,Sep 2025,0
+,Gastos,Oct 2025,0
+,Gastos,Nov 2025,0
+,Gastos,Dic 2025,0
+,,,
+Tendencia de Ganancias,line,,
+,Ganancia Neta,Dic 2024,0
+,Ganancia Neta,Ene 2025,-250
+,Ganancia Neta,Feb 2025,-110
+,Ganancia Neta,Mar 2025,305
+,Ganancia Neta,Abr 2025,-80
+,Ganancia Neta,May 2025,-115
+,Ganancia Neta,Jun 2025,730
+,Ganancia Neta,Jul 2025,0
+,Ganancia Neta,Ago 2025,0
+,Ganancia Neta,Sep 2025,0
+,Ganancia Neta,Oct 2025,0
+,Ganancia Neta,Nov 2025,0
+,Ganancia Neta,Dic 2025,0
+,,,
+Gastos por Categoría,pie,,
+,Monto,Salud,780
+,Monto,Infraestructura,200
+,Monto,Alimentación,850
+,Monto,Equipamiento,95
+,Monto,Mantenimiento,165
+,,,
+Top 5 Clientes por Ventas,doughnut,,
+,Ventas,Restaurant El Cuy Dorado,1400
+,Ventas,Familia Rodríguez,820
+,Ventas,Carlos López,350
+,,,

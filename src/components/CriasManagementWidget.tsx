@@ -3,7 +3,7 @@ import {
   Box, Typography, Paper, Grid, Card, CardContent, 
   Chip, Button, Alert, CircularProgress 
 } from '../utils/mui';
-import { Baby, Pets, TrendingUp, AccessTime } from '@mui/icons-material';
+import { ChildCare, Pets, TrendingUp, AccessTime } from '@mui/icons-material';
 import api from '../services/api';
 
 interface CriaStats {
@@ -35,7 +35,7 @@ const CriasManagementWidget: React.FC = () => {
       const camadas = camadasResponse.data;
       
       // Calcular estadísticas
-      const crias = cuyes.filter((cuy: any) => cuy.estado === 'Cría');
+      const crias = (cuyes as any).filter((cuy: any) => cuy.estado === 'Cría');
       const totalCrias = crias.length;
       
       // Agrupar crías por mes de nacimiento
@@ -49,8 +49,8 @@ const CriasManagementWidget: React.FC = () => {
       });
       
       // Calcular tasa de supervivencia
-      const totalVivos = camadas.reduce((sum: number, camada: any) => sum + camada.numVivos, 0);
-      const totalMuertos = camadas.reduce((sum: number, camada: any) => sum + camada.numMuertos, 0);
+      const totalVivos = (camadas as any).reduce((sum: number, camada: any) => sum + camada.numVivos, 0);
+      const totalMuertos = (camadas as any).reduce((sum: number, camada: any) => sum + camada.numMuertos, 0);
       const tasaSupervivencia = totalVivos + totalMuertos > 0 
         ? (totalVivos / (totalVivos + totalMuertos)) * 100 
         : 0;
@@ -99,7 +99,7 @@ const CriasManagementWidget: React.FC = () => {
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Baby color="primary" />
+        <ChildCare color="primary" />
         Gestión de Crías
       </Typography>
       

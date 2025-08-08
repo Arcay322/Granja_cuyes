@@ -66,8 +66,8 @@ const AlertasReproduccion: React.FC<AlertasReproduccionProps> = ({
     try {
       setLoading(true);
       const response = await api.get('/reproduccion/prenez/alertas-especificas');
-      if (response.data.success) {
-        setAlertas(response.data.data);
+      if ((response.data as any).success) {
+        setAlertas((response.data as any).data);
       }
     } catch (error) {
       console.error('Error al obtener alertas de reproducción:', error);

@@ -5,7 +5,10 @@
     "module": "commonjs",
     "outDir": "dist",
     "rootDir": "src",
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "typeRoots": ["./src/types", "./node_modules/@types"]

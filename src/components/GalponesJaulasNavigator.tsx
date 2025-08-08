@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import toastService from '../services/toastService';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 import CuyesTable from './CuyesTable';
 import RegistroJaulaForm from './RegistroJaulaForm';
 import GalponForm from './GalponForm';
@@ -111,11 +112,14 @@ const GalponesJaulasNavigator: React.FC = () => {
   const loadGalpones = async () => {
     try {
       const response = await api.get('/cuyes/galpones/resumen');
-      setGalpones(response.data);
+      if (isSuccessfulApiResponse<GalponData[]>(response.data)) {
+        setGalpones(response.data.data);
+      }
     } catch (error) {
       // Si no existe el endpoint, generar datos desde cuyes existentes
       const cuyesResponse = await api.get('/cuyes');
-      const cuyesData = cuyesResponse.data;
+      if (!isSuccessfulApiResponse<Cuy[]>(cuyesResponse.data)) return;
+      const cuyesData = cuyesResponse.data.data;
       
       const galponesMap = new Map<string, GalponData>();
       
@@ -154,11 +158,15 @@ const GalponesJaulasNavigator: React.FC = () => {
   const loadJaulas = async () => {
     try {
       const response = await api.get(`/cuyes/galpones/${selectedGalpon}/jaulas`);
-      setJaulas(response.data);
+      if (isSuccessfulApiResponse<JaulaData[]>(response.data)) {
+        setJaulas(response.data.data);
+      }
     } catch (error) {
       // Generar desde datos existentes
       const cuyesResponse = await api.get('/cuyes');
-      const cuyesData = cuyesResponse.data.filter((cuy: Cuy) => cuy.galpon === selectedGalpon);
+      const cuyesData = isSuccessfulApiResponse<Cuy[]>(cuyesResponse.data) 
+        ? cuyesResponse.data.data.filter((cuy: Cuy) => cuy.galpon === selectedGalpon)
+        : [];
       
       const jaulasMap = new Map<string, JaulaData>();
       
@@ -192,13 +200,15 @@ const GalponesJaulasNavigator: React.FC = () => {
   const loadCuyes = async () => {
     try {
       const response = await api.get(`/cuyes?galpon=${selectedGalpon}&jaula=${selectedJaula}`);
-      setCuyes(response.data);
+      if (isSuccessfulApiResponse<Cuy[]>(response.data)) {
+        setCuyes(response.data.data);
+      }
     } catch (error) {
       // Filtrar desde todos los cuyes
       const cuyesResponse = await api.get('/cuyes');
-      const filteredCuyes = cuyesResponse.data.filter(
-        (cuy: Cuy) => cuy.galpon === selectedGalpon && cuy.jaula === selectedJaula
-      );
+      const filteredCuyes = isSuccessfulApiResponse<Cuy[]>(cuyesResponse.data)
+        ? cuyesResponse.data.data.filter((cuy: Cuy) => cuy.galpon === selectedGalpon && cuy.jaula === selectedJaula)
+        : [];
       setCuyes(filteredCuyes);
     }
   };
@@ -290,11 +300,11 @@ const GalponesJaulasNavigator: React.FC = () => {
       setConfirmDelete(false);
       setDeleteTarget(null);
       loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al eliminar:', err);
       toastService.error(
         'Error al Eliminar',
-        err.response?.data?.message || `No se pudo eliminar ${deleteTarget.type === 'galpon' ? 'el galpón' : 'la jaula'}`
+(err as any).response?.data?.message || `No se pudo eliminar ${deleteTarget.type === 'galpon' ? 'el galpón' : 'la jaula'}`
       );
     } finally {
       setLoading(false);

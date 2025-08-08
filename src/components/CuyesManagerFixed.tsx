@@ -325,7 +325,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       const response = await api.delete(`/cuyes/${cuyId}/eliminar-con-relaciones`);
       if ((response.data as any).success) {
         const eliminados = (response.data as any).data.eliminados;
-        const totalEliminados = Object.values(eliminados).reduce((sum: number, count: number) => sum + count, 0);
+        const totalEliminados = Object.values(eliminados).reduce((sum: number, count: any) => sum + (count as number), 0);
         
         toastService.success(
           'Eliminación Exitosa',
@@ -455,14 +455,14 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
           // Obtener estadísticas reales de la jaula
           const totalCuyes = resumen.totalCuyes;
-          const crias = distribucion.etapas.find((e: unknown) => e.etapa === 'Cría')?.cantidad || 0;
+          const crias = distribucion.etapas.find((e: any) => e.etapa === 'Cría')?.cantidad || 0;
 
           // Hacer una consulta adicional para obtener datos de sexo específicos de la jaula
           const cuyesResponse = await api.get(`/cuyes?galpon=${presetFilters.galpon}&jaula=${presetFilters.jaula}&limit=1000`);
           if ((cuyesResponse.data as any).success) {
             const cuyesJaula = (cuyesResponse.data as any).data;
-            const machos = cuyesJaula.filter((c: unknown) => c.sexo === 'M').length;
-            const hembras = cuyesJaula.filter((c: unknown) => c.sexo === 'H').length;
+            const machos = cuyesJaula.filter((c: any) => c.sexo === 'M').length;
+            const hembras = cuyesJaula.filter((c: any) => c.sexo === 'H').length;
 
             setStats({
               total: totalCuyes,
@@ -603,7 +603,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
       const jaulasActualizadas = (jaulasResponse.data as any).success ? (jaulasResponse.data as any).data : jaulas;
 
       // Buscar la jaula para obtener su capacidad máxima
-      const jaula = jaulasActualizadas.find(j => j.galponNombre === galponNombre && j.nombre === jaulaNombre);
+      const jaula = jaulasActualizadas.find((j: any) => j.galponNombre === galponNombre && j.nombre === jaulaNombre);
       const capacidadMaxima = jaula?.capacidadMaxima || 10;
 
       console.log(`🔍 Verificando jaula ${jaulaNombre} en galpón ${galponNombre}:`);
@@ -631,7 +631,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
       // Buscar el galpón para obtener su capacidad máxima
       const galpon = galpones.find(g => g.nombre === galponNombre);
-      const capacidadMaxima = galpon?.capacidadMaxima || 50;
+      const capacidadMaxima = (galpon as any)?.capacidadMaxima || 50;
 
       return {
         ocupacionActual: cuyesActuales,
@@ -700,7 +700,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     await fetchHistorial(cuy.id);
   };
 
-  const handleCuyChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleCuyChange = (e: any) => {
     const { name, value } = e.target;
     if (name) {
       setCuyForm(prev => ({ ...prev, [name]: value }));
@@ -931,7 +931,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
             return {
               id,
               tieneRelaciones: (response.data as any).data.relacionesEncontradas.length > 0,
-              totalRelaciones: (response.data as any).data.relacionesEncontradas.reduce((sum, rel) => sum + rel.cantidad, 0)
+              totalRelaciones: (response.data as any).data.relacionesEncontradas.reduce((sum: any, rel: any) => sum + rel.cantidad, 0)
             };
           } catch (error) {
             return { id, tieneRelaciones: false, totalRelaciones: 0 };
@@ -994,7 +994,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
               id,
               success: false,
               eliminados: {},
-              error: error.response?.data?.message || 'Error desconocido'
+              error: (error as any).response?.data?.message || 'Error desconocido'
             };
           }
         })
@@ -1005,7 +1005,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
 
       // Calcular total de registros eliminados
       const totalRegistrosEliminados = exitosos.reduce((total, resultado) => {
-        return total + Object.values(resultado.eliminados).reduce((sum: number, count: number) => sum + count, 0);
+        return total + Object.values((resultado as any).eliminados).reduce((sum: number, count: any) => sum + (count as number), 0);
       }, 0);
 
       if (exitosos.length > 0) {
@@ -1149,7 +1149,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
     setNewGalponForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleNewJaulaChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleNewJaulaChange = (e: any) => {
     const { name, value } = e.target;
     if (name) {
       if (name === 'capacidadMaxima') {
@@ -1190,7 +1190,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         setMasiveForm(prev => ({ ...prev, galpon: newGalponForm.nombre }));
       }
     } catch (error: unknown) {
-      const errorMsg = error.response?.data?.error || 'No se pudo crear el galpón';
+      const errorMsg = (error as any).response?.data?.error || 'No se pudo crear el galpón';
       toastService.error('Error al crear galpón', errorMsg);
     } finally {
       setCreatingGalpon(false);
@@ -1252,7 +1252,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
         }
       }
     } catch (error: unknown) {
-      const errorMsg = error.response?.data?.error || 'No se pudo crear la jaula';
+      const errorMsg = (error as any).response?.data?.error || 'No se pudo crear la jaula';
       toastService.error('Error al crear jaula', errorMsg);
     } finally {
       setCreatingJaula(false);
@@ -1260,7 +1260,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
   };
 
   // Funciones para registro masivo
-  const handleMasiveChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleMasiveChange = (e: any) => {
     const { name, value } = e.target;
     if (name) {
       setMasiveForm(prev => ({ ...prev, [name]: value }));
@@ -1879,7 +1879,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <Chip
                       label={cuy.estado}
-                      color={getEstadoColor(cuy.estado) as unknown}
+                      color={getEstadoColor(cuy.estado)}
                       size="small"
                     />
                     <Tooltip title="Editar cuy">
@@ -1909,7 +1909,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                   <Chip
                     label={cuy.etapaVida}
-                    color={getEtapaColor(cuy.etapaVida) as unknown}
+                    color={getEtapaColor(cuy.etapaVida)}
                     size="small"
                     variant="outlined"
                     icon={<Info fontSize="small" />}
@@ -2041,14 +2041,14 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                     <TableCell>
                       <Chip
                         label={cuy.estado}
-                        color={getEstadoColor(cuy.estado) as unknown}
+                        color={getEstadoColor(cuy.estado)}
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
                       <Chip
                         label={cuy.etapaVida}
-                        color={getEtapaColor(cuy.etapaVida) as unknown}
+                        color={getEtapaColor(cuy.etapaVida)}
                         size="small"
                         variant="outlined"
                       />
@@ -2580,7 +2580,7 @@ const CuyesManagerFixed: React.FC<CuyesManagerProps> = ({
                           <LinearProgress
                             variant="determinate"
                             value={(item.cantidad / estadisticasAvanzadas.resumen.cuyesActivos) * 100}
-                            color={getEtapaColor(item.etapa) as unknown}
+                            color={getEtapaColor(item.etapa) === 'default' ? 'primary' : getEtapaColor(item.etapa) as 'primary' | 'secondary' | 'inherit' | 'error' | 'info' | 'success' | 'warning'}
                             sx={{ height: 8, borderRadius: 4 }}
                           />
                         </Box>

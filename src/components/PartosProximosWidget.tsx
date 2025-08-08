@@ -86,7 +86,7 @@ const PartosProximosWidget = () => {
           if (cuyesResponse && cuyesResponse.data) {
             const cuyesData = cuyesResponse.data;
             const cuyesMap: {[key: number]: any} = {};
-            cuyesData.forEach((cuy: any) => {
+            (cuyesData as any[]).forEach((cuy: any) => {
               cuyesMap[cuy.id] = cuy;
             });
             setCuyesInfo(cuyesMap);

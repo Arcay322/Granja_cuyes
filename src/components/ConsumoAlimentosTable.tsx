@@ -82,7 +82,7 @@ const ConsumoAlimentosTable: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/consumo');
-      setConsumos(response.data);
+      setConsumos((response.data as any) || []);
     } catch (error) {
       console.error('Error al obtener consumos:', error);
       toastService.error('Error', 'No se pudieron cargar los consumos');
@@ -94,7 +94,7 @@ const ConsumoAlimentosTable: React.FC = () => {
   const fetchAlimentos = async () => {
     try {
       const response = await api.get('/alimentos');
-      setAlimentos(response.data);
+      setAlimentos((response.data as any) || []);
     } catch (error) {
       console.error('Error al obtener alimentos:', error);
     }
@@ -166,7 +166,7 @@ const ConsumoAlimentosTable: React.FC = () => {
     });
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     if (name) {
       if (name === 'cantidad') {

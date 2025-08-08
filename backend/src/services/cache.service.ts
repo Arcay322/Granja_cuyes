@@ -1,78 +1,89 @@
-// Basic in-memory cache service for reproduction module
+import logger from '../utils/logger';
 
-interface CacheItem<T> {
+interface CacheOptions {
+  ttl?: number; // Time to live in seconds
+  checkperiod?: number; // Check period for expired keys
+  useClones?: boolean;
+  deleteOnExpire?: boolean;
+}
+
+interface CacheStats {
+  hits: number;
+  misses: number;
+  keys: number;
+  ksize: number;
+  vsize: number;
+}
+
+interface CacheEntry<T> {
   data: T;
   timestamp: number;
-  ttl: number; // Time to live in milliseconds
+  ttl: number;
+  accessCount: number;
+  lastAccessed: number;
 }
 
-interface CacheConfig {
-  defaultTTL: number;
-  maxSize: number;
-  cleanupInterval: number;
-}
+// Enhanced cache implementation using Map (alternative to node-cache)
+class SimpleCache {
+  private cache = new Map<string, { value: any; expires: number; created: number }>();
+  private stats = { hits: 0, misses: 0, keys: 0, ksize: 0, vsize: 0 };
+  private accessLog = new Map<string, number>();
+  private defaultTTL: number;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
-class CacheService {
-  private cache: Map<string, CacheItem<any>>;
-  private config: CacheConfig;
-  private cleanupTimer: NodeJS.Timeout | null;
+  constructor(options: CacheOptions = {}) {
+    this.defaultTTL = (options.ttl || 300) * 1000; // Convert to milliseconds
 
-  constructor(config: Partial<CacheConfig> = {}) {
-    this.cache = new Map();
-    this.config = {
-      defaultTTL: 5 * 60 * 1000, // 5 minutes default
-      maxSize: 1000, // Maximum number of cached items
-      cleanupInterval: 60 * 1000, // Cleanup every minute
-      ...config
-    };
-    this.cleanupTimer = null;
-    this.startCleanupTimer();
+    // Setup periodic cleanup
+    if (options.checkperiod) {
+      this.cleanupInterval = setInterval(() => {
+        this.cleanupExpired();
+      }, options.checkperiod * 1000);
+    }
   }
 
-  // Get item from cache
-  async get<T>(key: string): Promise<T | null> {
-    const item = this.cache.get(key);
-    
-    if (!item) {
-      return null;
+  private cleanupExpired(): void {
+    const now = Date.now();
+    let deletedCount = 0;
+
+    for (const [key, item] of this.cache.entries()) {
+      if (now > item.expires) {
+        this.cache.delete(key);
+        this.accessLog.delete(key);
+        deletedCount++;
+        logger.debug(`Cache EXPIRED: ${key}`);
+      }
     }
 
-    // Check if item has expired
+    if (deletedCount > 0) {
+      logger.debug(`Cleaned up ${deletedCount} expired cache entries`);
+    }
+  }
+
+  set(key: string, value: any, ttl?: number): boolean {
     const now = Date.now();
-    if (now - item.timestamp > item.ttl) {
+    const expires = now + (ttl ? ttl * 1000 : this.defaultTTL);
+    this.cache.set(key, { value, expires, created: now });
+    return true;
+  }
+
+  get<T>(key: string): T | undefined {
+    const item = this.cache.get(key);
+    if (!item) return undefined;
+
+    if (Date.now() > item.expires) {
       this.cache.delete(key);
-      return null;
+      return undefined;
     }
 
-    return item.data as T;
+    return item.value;
   }
 
-  // Set item in cache
-  async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    // Check cache size limit
-    if (this.cache.size >= this.config.maxSize) {
-      this.evictOldest();
-    }
-
-    const item: CacheItem<T> = {
-      data: value,
-      timestamp: Date.now(),
-      ttl: ttl || this.config.defaultTTL
-    };
-
-    this.cache.set(key, item);
-  }
-
-  // Check if key exists and is not expired
-  async has(key: string): Promise<boolean> {
+  has(key: string): boolean {
     const item = this.cache.get(key);
-    
-    if (!item) {
-      return false;
-    }
+    if (!item) return false;
 
-    const now = Date.now();
-    if (now - item.timestamp > item.ttl) {
+    if (Date.now() > item.expires) {
       this.cache.delete(key);
       return false;
     }
@@ -80,262 +91,427 @@ class CacheService {
     return true;
   }
 
-  // Delete specific key
-  async delete(key: string): Promise<boolean> {
-    return this.cache.delete(key);
+  del(key: string): number {
+    return this.cache.delete(key) ? 1 : 0;
   }
 
-  // Invalidate keys matching pattern
-  async invalidate(pattern: string): Promise<number> {
-    let deletedCount = 0;
-    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-    
-    for (const key of this.cache.keys()) {
-      if (regex.test(key)) {
-        this.cache.delete(key);
-        deletedCount++;
-      }
-    }
-    
-    return deletedCount;
-  }
-
-  // Clear all cache
-  async clear(): Promise<void> {
-    this.cache.clear();
-  }
-
-  // Get cache statistics
-  getStats() {
+  keys(): string[] {
+    // Clean expired keys first
     const now = Date.now();
-    let expiredCount = 0;
-    let validCount = 0;
-
     for (const [key, item] of this.cache.entries()) {
-      if (now - item.timestamp > item.ttl) {
-        expiredCount++;
-      } else {
-        validCount++;
+      if (now > item.expires) {
+        this.cache.delete(key);
       }
     }
-
-    return {
-      totalItems: this.cache.size,
-      validItems: validCount,
-      expiredItems: expiredCount,
-      maxSize: this.config.maxSize,
-      hitRate: this.getHitRate()
-    };
+    return Array.from(this.cache.keys());
   }
 
-  // Get cache hit rate (simplified implementation)
-  private hitRate = { hits: 0, misses: 0 };
-  
-  private getHitRate(): number {
-    const total = this.hitRate.hits + this.hitRate.misses;
-    return total > 0 ? (this.hitRate.hits / total) * 100 : 0;
-  }
-
-  // Track cache hit
-  private trackHit(): void {
-    this.hitRate.hits++;
-  }
-
-  // Track cache miss
-  private trackMiss(): void {
-    this.hitRate.misses++;
-  }
-
-  // Enhanced get method with hit/miss tracking
-  async getWithTracking<T>(key: string): Promise<T | null> {
-    const result = await this.get<T>(key);
-    
-    if (result !== null) {
-      this.trackHit();
-    } else {
-      this.trackMiss();
-    }
-    
+  mget<T>(keys: string[]): { [key: string]: T } {
+    const result: { [key: string]: T } = {};
+    keys.forEach(key => {
+      const value = this.get<T>(key);
+      if (value !== undefined) {
+        result[key] = value;
+      }
+    });
     return result;
   }
 
-  // Evict oldest items when cache is full
-  private evictOldest(): void {
-    let oldestKey: string | null = null;
-    let oldestTimestamp = Date.now();
-
-    for (const [key, item] of this.cache.entries()) {
-      if (item.timestamp < oldestTimestamp) {
-        oldestTimestamp = item.timestamp;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
-    }
+  mset<T>(keyValuePairs: Array<{ key: string; val: T; ttl?: number }>): boolean {
+    keyValuePairs.forEach(({ key, val, ttl }) => {
+      this.set(key, val, ttl);
+    });
+    return true;
   }
 
-  // Start cleanup timer to remove expired items
-  private startCleanupTimer(): void {
-    this.cleanupTimer = setInterval(() => {
-      this.cleanup();
-    }, this.config.cleanupInterval);
-  }
-
-  // Cleanup expired items
-  private cleanup(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-
-    for (const [key, item] of this.cache.entries()) {
-      if (now - item.timestamp > item.ttl) {
-        keysToDelete.push(key);
-      }
-    }
-
-    keysToDelete.forEach(key => this.cache.delete(key));
-    
-    if (process.env.NODE_ENV === 'development' && keysToDelete.length > 0) {
-      console.log(`Cache cleanup: removed ${keysToDelete.length} expired items`);
-    }
-  }
-
-  // Stop cleanup timer
-  destroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-      this.cleanupTimer = null;
-    }
+  flushAll(): void {
     this.cache.clear();
+  }
+
+  getStats() {
+    return {
+      keys: this.cache.size,
+      ksize: this.cache.size,
+      vsize: this.cache.size
+    };
+  }
+
+  on(event: string, callback: Function): void {
+    // Simple event emulation - in real node-cache this would be more sophisticated
+    // For now, we'll just ignore events
   }
 }
 
-// Cache configuration for reproduction module
-export const reproductionCacheConfig = {
-  statistics: {
-    ttl: 5 * 60 * 1000, // 5 minutes
-    keyPrefix: 'reproduction:stats'
-  },
-  animalLists: {
-    ttl: 15 * 60 * 1000, // 15 minutes
-    keyPrefix: 'reproduction:animals'
-  },
-  compatibility: {
-    ttl: 15 * 60 * 1000, // 15 minutes
-    keyPrefix: 'reproduction:compatibility'
-  },
-  pregnancies: {
-    ttl: 2 * 60 * 1000, // 2 minutes
-    keyPrefix: 'reproduction:pregnancies'
-  },
-  litters: {
-    ttl: 2 * 60 * 1000, // 2 minutes
-    keyPrefix: 'reproduction:litters'
+class CacheService {
+  private cache: SimpleCache;
+  private stats: CacheStats;
+  private accessLog: Map<string, number> = new Map();
+
+  constructor(options: CacheOptions = {}) {
+    const defaultOptions: CacheOptions = {
+      ttl: 300, // 5 minutes default
+      checkperiod: 60, // Check every minute
+      useClones: false,
+      deleteOnExpire: true
+    };
+
+    this.cache = new SimpleCache({ ttl: options.ttl || defaultOptions.ttl });
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      keys: 0,
+      ksize: 0,
+      vsize: 0
+    };
+
+    this.setupEventListeners();
   }
-};
 
-// Create singleton cache instance
-export const cacheService = new CacheService({
-  defaultTTL: 5 * 60 * 1000, // 5 minutes
-  maxSize: 500,
-  cleanupInterval: 60 * 1000 // 1 minute
-});
+  private setupEventListeners(): void {
+    // Since our SimpleCache doesn't emit events like node-cache,
+    // we'll update stats directly in the methods that need them
+    // This method is kept for compatibility but doesn't do anything
+  }
 
-// Helper functions for reproduction-specific caching
-export const reproductionCache = {
-  // Statistics caching
-  async getStatistics(key: string) {
-    return cacheService.getWithTracking(`${reproductionCacheConfig.statistics.keyPrefix}:${key}`);
-  },
+  // Get value from cache
+  public get<T>(key: string): T | undefined {
+    const value = this.cache.get<T>(key);
 
-  async setStatistics(key: string, data: any) {
-    return cacheService.set(
-      `${reproductionCacheConfig.statistics.keyPrefix}:${key}`,
-      data,
-      reproductionCacheConfig.statistics.ttl
-    );
-  },
+    if (value !== undefined) {
+      this.stats.hits++;
+      this.accessLog.set(key, (this.accessLog.get(key) || 0) + 1);
+      logger.debug(`Cache HIT: ${key}`);
+      return value;
+    } else {
+      this.stats.misses++;
+      logger.debug(`Cache MISS: ${key}`);
+      return undefined;
+    }
+  }
 
-  // Animal lists caching
-  async getAnimalList(key: string) {
-    return cacheService.getWithTracking(`${reproductionCacheConfig.animalLists.keyPrefix}:${key}`);
-  },
+  // Set value in cache
+  public set<T>(key: string, value: T, ttl?: number): boolean {
+    const success = this.cache.set(key, value, ttl);
+    if (success) {
+      logger.debug(`Cache SET: ${key} (TTL: ${ttl || 'default'})`);
+    }
+    return success;
+  }
 
-  async setAnimalList(key: string, data: any) {
-    return cacheService.set(
-      `${reproductionCacheConfig.animalLists.keyPrefix}:${key}`,
-      data,
-      reproductionCacheConfig.animalLists.ttl
-    );
-  },
+  // Delete key from cache
+  public del(key: string): number {
+    const deleted = this.cache.del(key);
+    if (deleted > 0) {
+      logger.debug(`Cache DELETE: ${key}`);
+    }
+    return deleted;
+  }
 
-  // Compatibility caching
-  async getCompatibility(madreId: number, padreId: number) {
-    const key = `${reproductionCacheConfig.compatibility.keyPrefix}:${madreId}-${padreId}`;
-    return cacheService.getWithTracking(key);
-  },
+  // Check if key exists
+  public has(key: string): boolean {
+    return this.cache.has(key);
+  }
 
-  async setCompatibility(madreId: number, padreId: number, data: any) {
-    const key = `${reproductionCacheConfig.compatibility.keyPrefix}:${madreId}-${padreId}`;
-    return cacheService.set(key, data, reproductionCacheConfig.compatibility.ttl);
-  },
+  // Get multiple keys
+  public mget<T>(keys: string[]): { [key: string]: T } {
+    return this.cache.mget(keys);
+  }
 
-  // Pregnancies caching
-  async getPregnancies(filters: string) {
-    return cacheService.getWithTracking(`${reproductionCacheConfig.pregnancies.keyPrefix}:${filters}`);
-  },
+  // Set multiple keys
+  public mset<T>(keyValuePairs: Array<{ key: string; val: T; ttl?: number }>): boolean {
+    return this.cache.mset(keyValuePairs);
+  }
 
-  async setPregnancies(filters: string, data: any) {
-    return cacheService.set(
-      `${reproductionCacheConfig.pregnancies.keyPrefix}:${filters}`,
-      data,
-      reproductionCacheConfig.pregnancies.ttl
-    );
-  },
-
-  // Litters caching
-  async getLitters(filters: string) {
-    return cacheService.getWithTracking(`${reproductionCacheConfig.litters.keyPrefix}:${filters}`);
-  },
-
-  async setLitters(filters: string, data: any) {
-    return cacheService.set(
-      `${reproductionCacheConfig.litters.keyPrefix}:${filters}`,
-      data,
-      reproductionCacheConfig.litters.ttl
-    );
-  },
-
-  // Invalidation helpers
-  async invalidateStatistics() {
-    return cacheService.invalidate(`${reproductionCacheConfig.statistics.keyPrefix}:*`);
-  },
-
-  async invalidateAnimalLists() {
-    return cacheService.invalidate(`${reproductionCacheConfig.animalLists.keyPrefix}:*`);
-  },
-
-  async invalidateCompatibility() {
-    return cacheService.invalidate(`${reproductionCacheConfig.compatibility.keyPrefix}:*`);
-  },
-
-  async invalidatePregnancies() {
-    return cacheService.invalidate(`${reproductionCacheConfig.pregnancies.keyPrefix}:*`);
-  },
-
-  async invalidateLitters() {
-    return cacheService.invalidate(`${reproductionCacheConfig.litters.keyPrefix}:*`);
-  },
-
-  async invalidateAll() {
-    return cacheService.invalidate('reproduction:*');
-  },
+  // Get all keys
+  public keys(): string[] {
+    return this.cache.keys();
+  }
 
   // Get cache statistics
-  getStats() {
-    return cacheService.getStats();
+  public getStats(): CacheStats & { hitRate: number; accessLog: Array<{ key: string; count: number }> } {
+    const cacheStats = this.cache.getStats();
+    const totalRequests = this.stats.hits + this.stats.misses;
+    const hitRate = totalRequests > 0 ? (this.stats.hits / totalRequests) * 100 : 0;
+
+    const accessLog = Array.from(this.accessLog.entries())
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10 most accessed keys
+
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      keys: cacheStats.keys,
+      ksize: cacheStats.ksize,
+      vsize: cacheStats.vsize,
+      hitRate: Math.round(hitRate * 100) / 100,
+      accessLog
+    };
   }
+
+  // Clear all cache
+  public flushAll(): void {
+    this.cache.flushAll();
+    this.stats = { hits: 0, misses: 0, keys: 0, ksize: 0, vsize: 0 };
+    this.accessLog.clear();
+    logger.info('Cache flushed');
+  }
+
+  // Get or set pattern (cache-aside pattern)
+  public async getOrSet<T>(
+    key: string,
+    fetchFunction: () => Promise<T>,
+    ttl?: number
+  ): Promise<T> {
+    const cached = this.get<T>(key);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    try {
+      const value = await fetchFunction();
+      this.set(key, value, ttl);
+      return value;
+    } catch (error) {
+      logger.error(`Error in getOrSet for key ${key}:`, error);
+      throw error;
+    }
+  }
+
+  // Invalidate cache by pattern
+  public invalidatePattern(pattern: string): number {
+    const keys = this.cache.keys();
+    const regex = new RegExp(pattern);
+    const keysToDelete = keys.filter(key => regex.test(key));
+
+    let deletedCount = 0;
+    keysToDelete.forEach(key => {
+      deletedCount += this.cache.del(key);
+    });
+
+    logger.info(`Invalidated ${deletedCount} keys matching pattern: ${pattern}`);
+    return deletedCount;
+  }
+
+  // Warm up cache with data
+  public async warmUp(warmUpFunctions: Array<{ key: string; fn: () => Promise<any>; ttl?: number }>): Promise<void> {
+    logger.info('Starting cache warm-up...');
+
+    const promises = warmUpFunctions.map(async ({ key, fn, ttl }) => {
+      try {
+        const value = await fn();
+        this.set(key, value, ttl);
+        logger.debug(`Cache warmed up: ${key}`);
+      } catch (error) {
+        logger.error(`Error warming up cache for key ${key}:`, error);
+      }
+    });
+
+    await Promise.allSettled(promises);
+    logger.info('Cache warm-up completed');
+  }
+}
+
+// Specialized cache services
+class DashboardCacheService extends CacheService {
+  constructor() {
+    super({
+      ttl: 300, // 5 minutes for dashboard data
+      checkperiod: 60
+    });
+  }
+
+  // Cache dashboard metrics
+  public async getDashboardMetrics(filters: any = {}): Promise<any> {
+    const cacheKey = `dashboard:metrics:${JSON.stringify(filters)}`;
+
+    return this.getOrSet(cacheKey, async () => {
+      // This would call the actual metrics service
+      const { getDashboardMetrics } = await import('./dashboard/metrics.service');
+      return getDashboardMetrics(filters);
+    }, 300); // 5 minutes TTL
+  }
+
+  // Cache charts data
+  public async getChartsData(filters: any = {}): Promise<any> {
+    const cacheKey = `dashboard:charts:${JSON.stringify(filters)}`;
+
+    return this.getOrSet(cacheKey, async () => {
+      const { getAllChartsData } = await import('./dashboard/charts.service');
+      return getAllChartsData(filters);
+    }, 600); // 10 minutes TTL for charts
+  }
+
+  // Invalidate dashboard cache
+  public invalidateDashboardCache(): void {
+    this.invalidatePattern('^dashboard:');
+    logger.info('Dashboard cache invalidated');
+  }
+}
+
+class ReportsCacheService extends CacheService {
+  constructor() {
+    super({
+      ttl: 1800, // 30 minutes for reports
+      checkperiod: 300 // Check every 5 minutes
+    });
+  }
+
+  // Cache report templates
+  public async getReportTemplates(): Promise<any> {
+    const cacheKey = 'reports:templates';
+
+    return this.getOrSet(cacheKey, async () => {
+      // TODO: Implement reports service when available
+      return [];
+    }, 3600); // 1 hour TTL for templates
+  }
+
+  // Cache generated report data
+  public async getReportData(templateId: string, parameters: any): Promise<any> {
+    const cacheKey = `reports:data:${templateId}:${JSON.stringify(parameters)}`;
+
+    return this.getOrSet(cacheKey, async () => {
+      // TODO: Implement reports service when available
+      return { templateId, parameters, data: [] };
+    }, 1800); // 30 minutes TTL
+  }
+
+  // Invalidate reports cache
+  public invalidateReportsCache(): void {
+    this.invalidatePattern('^reports:');
+    logger.info('Reports cache invalidated');
+  }
+}
+
+class CalendarCacheService extends CacheService {
+  constructor() {
+    super({
+      ttl: 900, // 15 minutes for calendar data
+      checkperiod: 120
+    });
+  }
+
+  // Cache calendar events
+  public async getCalendarEvents(filters: unknown = {}): Promise<unknown> {
+    const cacheKey = `calendar:events:${JSON.stringify(filters)}`;
+
+    return this.getOrSet(cacheKey, async () => {
+      const { getEvents } = await import('./calendar/events.service');
+      return getEvents(filters as any);
+    }, 900); // 15 minutes TTL
+  }
+
+  // Invalidate calendar cache
+  public invalidateCalendarCache(): void {
+    this.invalidatePattern('^calendar:');
+    logger.info('Calendar cache invalidated');
+  }
+}
+
+// Cache invalidation strategies
+class CacheInvalidationService {
+  private dashboardCache: DashboardCacheService;
+  private reportsCache: ReportsCacheService;
+  private calendarCache: CalendarCacheService;
+
+  constructor(
+    dashboardCache: DashboardCacheService,
+    reportsCache: ReportsCacheService,
+    calendarCache: CalendarCacheService
+  ) {
+    this.dashboardCache = dashboardCache;
+    this.reportsCache = reportsCache;
+    this.calendarCache = calendarCache;
+  }
+
+  // Invalidate cache based on data changes
+  public invalidateByDataChange(entity: string, action: 'create' | 'update' | 'delete'): void {
+    logger.info(`Invalidating cache for ${entity} ${action}`);
+
+    switch (entity) {
+      case 'cuy':
+      case 'galpon':
+      case 'jaula':
+        this.dashboardCache.invalidateDashboardCache();
+        this.reportsCache.invalidateReportsCache();
+        break;
+
+      case 'prenez':
+      case 'camada':
+        this.dashboardCache.invalidateDashboardCache();
+        this.reportsCache.invalidateReportsCache();
+        this.calendarCache.invalidateCalendarCache();
+        break;
+
+      case 'historialSalud':
+        this.reportsCache.invalidateReportsCache();
+        break;
+
+      default:
+        logger.warn(`Unknown entity for cache invalidation: ${entity}`);
+    }
+  }
+
+  // Scheduled cache cleanup
+  public scheduleCleanup(): void {
+    // Clean up every hour
+    setInterval(() => {
+      this.performCleanup();
+    }, 60 * 60 * 1000);
+
+    logger.info('Cache cleanup scheduled');
+  }
+
+  private performCleanup(): void {
+    const dashboardStats = this.dashboardCache.getStats();
+    const reportsStats = this.reportsCache.getStats();
+    const calendarStats = this.calendarCache.getStats();
+
+    logger.info('Cache cleanup stats:', {
+      dashboard: { keys: dashboardStats.keys, hitRate: dashboardStats.hitRate },
+      reports: { keys: reportsStats.keys, hitRate: reportsStats.hitRate },
+      calendar: { keys: calendarStats.keys, hitRate: calendarStats.hitRate }
+    });
+
+    // Clean up low-hit rate entries if memory usage is high
+    if (dashboardStats.keys > 1000 && dashboardStats.hitRate < 50) {
+      // Could implement LRU cleanup here
+      logger.info('Dashboard cache cleanup triggered');
+    }
+  }
+}
+
+// Singleton instances
+export const mainCache = new CacheService();
+export const dashboardCache = new DashboardCacheService();
+export const reportsCache = new ReportsCacheService();
+export const calendarCache = new CalendarCacheService();
+
+export const cacheInvalidation = new CacheInvalidationService(
+  dashboardCache,
+  reportsCache,
+  calendarCache
+);
+
+// Initialize cache cleanup
+cacheInvalidation.scheduleCleanup();
+
+// Export cache service class for custom instances
+export { CacheService };
+
+// Utility functions
+export const getCacheKey = (prefix: string, ...parts: (string | number | object)[]): string => {
+  return `${prefix}:${parts.map(part =>
+    typeof part === 'object' ? JSON.stringify(part) : String(part)
+  ).join(':')}`;
 };
 
-export default cacheService;
+export const invalidateAllCaches = (): void => {
+  mainCache.flushAll();
+  dashboardCache.flushAll();
+  reportsCache.flushAll();
+  calendarCache.flushAll();
+  logger.info('All caches invalidated');
+};

@@ -1,221 +1,387 @@
-import { cacheService, reproductionCache } from '../services/cache.service';
+import { CacheService, mainCache, dashboardCache, getCacheKey, invalidateAllCaches } from '../services/cache.service';
 
 describe('Cache Service', () => {
-  beforeEach(async () => {
-    await cacheService.clear();
+  let cacheService: CacheService;
+
+  beforeEach(() => {
+    cacheService = new CacheService({ ttl: 60 }); // 1 minute TTL for tests
   });
 
-  afterAll(() => {
-    cacheService.destroy();
+  afterEach(() => {
+    cacheService.flushAll();
   });
 
   describe('Basic Cache Operations', () => {
-    it('should set and get cache items', async () => {
-      const testData = { test: 'data', number: 123 };
-      await cacheService.set('test-key', testData);
-      
-      const result = await cacheService.get('test-key');
-      expect(result).toEqual(testData);
+    it('should set and get values', () => {
+      const key = 'test-key';
+      const value = { data: 'test-value', number: 42 };
+
+      const setResult = cacheService.set(key, value);
+      expect(setResult).toBe(true);
+
+      const retrievedValue = cacheService.get(key);
+      expect(retrievedValue).toEqual(value);
     });
 
-    it('should return null for non-existent keys', async () => {
-      const result = await cacheService.get('non-existent-key');
-      expect(result).toBeNull();
+    it('should return undefined for non-existent keys', () => {
+      const value = cacheService.get('non-existent-key');
+      expect(value).toBeUndefined();
     });
 
-    it('should respect TTL and expire items', async () => {
-      const testData = { test: 'data' };
-      await cacheService.set('test-key', testData, 100); // 100ms TTL
+    it('should check if key exists', () => {
+      const key = 'existence-test';
       
-      // Should exist immediately
-      let result = await cacheService.get('test-key');
-      expect(result).toEqual(testData);
+      expect(cacheService.has(key)).toBe(false);
       
-      // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 150));
-      
-      // Should be expired
-      result = await cacheService.get('test-key');
-      expect(result).toBeNull();
+      cacheService.set(key, 'value');
+      expect(cacheService.has(key)).toBe(true);
     });
 
-    it('should check if key exists', async () => {
-      await cacheService.set('test-key', { data: 'test' });
+    it('should delete keys', () => {
+      const key = 'delete-test';
+      cacheService.set(key, 'value');
       
-      const exists = await cacheService.has('test-key');
-      expect(exists).toBe(true);
+      expect(cacheService.has(key)).toBe(true);
       
-      const notExists = await cacheService.has('non-existent');
-      expect(notExists).toBe(false);
+      const deleteCount = cacheService.del(key);
+      expect(deleteCount).toBe(1);
+      expect(cacheService.has(key)).toBe(false);
     });
 
-    it('should delete specific keys', async () => {
-      await cacheService.set('test-key', { data: 'test' });
-      
-      const deleted = await cacheService.delete('test-key');
-      expect(deleted).toBe(true);
-      
-      const result = await cacheService.get('test-key');
-      expect(result).toBeNull();
+    it('should handle multiple keys', () => {
+      const keyValuePairs = [
+        { key: 'key1', val: 'value1' },
+        { key: 'key2', val: 'value2' },
+        { key: 'key3', val: 'value3' }
+      ];
+
+      const setResult = cacheService.mset(keyValuePairs);
+      expect(setResult).toBe(true);
+
+      const values = cacheService.mget(['key1', 'key2', 'key3']);
+      expect(values).toEqual({
+        key1: 'value1',
+        key2: 'value2',
+        key3: 'value3'
+      });
+    });
+  });
+
+  describe('TTL and Expiration', () => {
+    it('should respect custom TTL', (done) => {
+      const key = 'ttl-test';
+      const value = 'expires-soon';
+      const shortTTL = 0.1; // 100ms
+
+      cacheService.set(key, value, shortTTL);
+      expect(cacheService.get(key)).toBe(value);
+
+      setTimeout(() => {
+        expect(cacheService.get(key)).toBeUndefined();
+        done();
+      }, 150);
     });
 
-    it('should invalidate keys matching pattern', async () => {
-      await cacheService.set('user:1', { id: 1 });
-      await cacheService.set('user:2', { id: 2 });
-      await cacheService.set('product:1', { id: 1 });
-      
-      const deletedCount = await cacheService.invalidate('user:*');
-      expect(deletedCount).toBe(2);
-      
-      // User keys should be gone
-      expect(await cacheService.get('user:1')).toBeNull();
-      expect(await cacheService.get('user:2')).toBeNull();
-      
-      // Product key should remain
-      expect(await cacheService.get('product:1')).toEqual({ id: 1 });
-    });
+    it('should use default TTL when not specified', () => {
+      const key = 'default-ttl-test';
+      const value = 'default-ttl-value';
 
-    it('should clear all cache', async () => {
-      await cacheService.set('key1', { data: 1 });
-      await cacheService.set('key2', { data: 2 });
-      
-      await cacheService.clear();
-      
-      expect(await cacheService.get('key1')).toBeNull();
-      expect(await cacheService.get('key2')).toBeNull();
+      cacheService.set(key, value);
+      expect(cacheService.get(key)).toBe(value);
     });
   });
 
   describe('Cache Statistics', () => {
-    it('should track cache statistics', async () => {
-      await cacheService.set('key1', { data: 1 });
-      await cacheService.set('key2', { data: 2 });
-      
-      const stats = cacheService.getStats();
-      expect(stats.totalItems).toBe(2);
-      expect(stats.validItems).toBe(2);
-      expect(stats.expiredItems).toBe(0);
+    it('should track hits and misses', () => {
+      const key = 'stats-test';
+      const value = 'stats-value';
+
+      // Initial stats
+      let stats = cacheService.getStats();
+      const initialHits = stats.hits;
+      const initialMisses = stats.misses;
+
+      // Cache miss
+      cacheService.get(key);
+      stats = cacheService.getStats();
+      expect(stats.misses).toBe(initialMisses + 1);
+
+      // Cache set and hit
+      cacheService.set(key, value);
+      cacheService.get(key);
+      stats = cacheService.getStats();
+      expect(stats.hits).toBe(initialHits + 1);
     });
 
-    it('should track hit/miss rates', async () => {
-      await cacheService.set('existing-key', { data: 'test' });
-      
-      // Hit
-      await cacheService.getWithTracking('existing-key');
-      
-      // Miss
-      await cacheService.getWithTracking('non-existent-key');
-      
+    it('should calculate hit rate correctly', () => {
+      const key = 'hit-rate-test';
+      const value = 'hit-rate-value';
+
+      // Generate some hits and misses
+      cacheService.get('miss1'); // miss
+      cacheService.get('miss2'); // miss
+      cacheService.set(key, value);
+      cacheService.get(key); // hit
+      cacheService.get(key); // hit
+
       const stats = cacheService.getStats();
-      expect(stats.hitRate).toBe(50); // 1 hit out of 2 attempts
+      expect(stats.hitRate).toBe(50); // 2 hits out of 4 total requests
+    });
+
+    it('should track access log', () => {
+      const key = 'access-log-test';
+      const value = 'access-log-value';
+
+      cacheService.set(key, value);
+      cacheService.get(key);
+      cacheService.get(key);
+      cacheService.get(key);
+
+      const stats = cacheService.getStats();
+      const accessEntry = stats.accessLog.find(entry => entry.key === key);
+      expect(accessEntry).toBeDefined();
+      expect(accessEntry?.count).toBe(3);
     });
   });
 
-  describe('Reproduction Cache', () => {
-    it('should cache and retrieve statistics', async () => {
-      const testStats = {
-        resumen: { totalPreneces: 10, prenecesActivas: 5 },
-        promedios: { tasaExito: 80.5 }
+  describe('Cache-aside Pattern', () => {
+    it('should implement getOrSet pattern', async () => {
+      const key = 'get-or-set-test';
+      const expectedValue = { computed: true, timestamp: Date.now() };
+      let fetchCalled = false;
+
+      const fetchFunction = async () => {
+        fetchCalled = true;
+        return expectedValue;
       };
-      
-      await reproductionCache.setStatistics('test-stats', testStats);
-      const result = await reproductionCache.getStatistics('test-stats');
-      
-      expect(result).toEqual(testStats);
+
+      // First call should fetch and cache
+      const result1 = await cacheService.getOrSet(key, fetchFunction);
+      expect(result1).toEqual(expectedValue);
+      expect(fetchCalled).toBe(true);
+
+      // Second call should return cached value
+      fetchCalled = false;
+      const result2 = await cacheService.getOrSet(key, fetchFunction);
+      expect(result2).toEqual(expectedValue);
+      expect(fetchCalled).toBe(false);
     });
 
-    it('should cache and retrieve animal lists', async () => {
-      const testAnimals = [
-        { id: 1, raza: 'Peruana', galpon: 'A', jaula: '1' },
-        { id: 2, raza: 'Andina', galpon: 'B', jaula: '2' }
+    it('should handle fetch function errors', async () => {
+      const key = 'error-test';
+      const fetchFunction = async () => {
+        throw new Error('Fetch failed');
+      };
+
+      await expect(cacheService.getOrSet(key, fetchFunction)).rejects.toThrow('Fetch failed');
+    });
+  });
+
+  describe('Pattern-based Invalidation', () => {
+    it('should invalidate keys by pattern', () => {
+      // Set up test data
+      cacheService.set('user:1:profile', { name: 'User 1' });
+      cacheService.set('user:2:profile', { name: 'User 2' });
+      cacheService.set('user:1:settings', { theme: 'dark' });
+      cacheService.set('product:1:details', { name: 'Product 1' });
+
+      // Invalidate all user-related keys
+      const deletedCount = cacheService.invalidatePattern('^user:');
+      expect(deletedCount).toBe(3);
+
+      // Verify user keys are gone but product key remains
+      expect(cacheService.has('user:1:profile')).toBe(false);
+      expect(cacheService.has('user:2:profile')).toBe(false);
+      expect(cacheService.has('user:1:settings')).toBe(false);
+      expect(cacheService.has('product:1:details')).toBe(true);
+    });
+
+    it('should handle complex patterns', () => {
+      cacheService.set('dashboard:metrics:2024-01', { value: 1 });
+      cacheService.set('dashboard:metrics:2024-02', { value: 2 });
+      cacheService.set('dashboard:charts:2024-01', { value: 3 });
+      cacheService.set('reports:data:2024-01', { value: 4 });
+
+      // Invalidate only dashboard metrics
+      const deletedCount = cacheService.invalidatePattern('dashboard:metrics:');
+      expect(deletedCount).toBe(2);
+
+      expect(cacheService.has('dashboard:metrics:2024-01')).toBe(false);
+      expect(cacheService.has('dashboard:metrics:2024-02')).toBe(false);
+      expect(cacheService.has('dashboard:charts:2024-01')).toBe(true);
+      expect(cacheService.has('reports:data:2024-01')).toBe(true);
+    });
+  });
+
+  describe('Cache Warming', () => {
+    it('should warm up cache with multiple functions', async () => {
+      const warmUpFunctions = [
+        {
+          key: 'warm1',
+          fn: async () => ({ data: 'warm1' }),
+          ttl: 300
+        },
+        {
+          key: 'warm2',
+          fn: async () => ({ data: 'warm2' }),
+          ttl: 600
+        }
       ];
-      
-      await reproductionCache.setAnimalList('available-mothers', testAnimals);
-      const result = await reproductionCache.getAnimalList('available-mothers');
-      
-      expect(result).toEqual(testAnimals);
+
+      await cacheService.warmUp(warmUpFunctions);
+
+      expect(cacheService.get('warm1')).toEqual({ data: 'warm1' });
+      expect(cacheService.get('warm2')).toEqual({ data: 'warm2' });
     });
 
-    it('should cache compatibility results', async () => {
-      const compatibilityData = {
-        score: 85,
-        recommendations: ['Good genetic match'],
-        warnings: []
-      };
+    it('should handle warm-up errors gracefully', async () => {
+      const warmUpFunctions = [
+        {
+          key: 'success',
+          fn: async () => ({ data: 'success' })
+        },
+        {
+          key: 'error',
+          fn: async () => {
+            throw new Error('Warm-up failed');
+          }
+        }
+      ];
+
+      // Should not throw error
+      await expect(cacheService.warmUp(warmUpFunctions)).resolves.toBeUndefined();
+
+      // Successful warm-up should be cached
+      expect(cacheService.get('success')).toEqual({ data: 'success' });
+      // Failed warm-up should not be cached
+      expect(cacheService.get('error')).toBeUndefined();
+    });
+  });
+});
+
+describe('Specialized Cache Services', () => {
+  afterEach(() => {
+    invalidateAllCaches();
+  });
+
+  describe('Dashboard Cache Service', () => {
+    it('should cache dashboard metrics', async () => {
+      // Mock the metrics service
+      jest.doMock('../services/dashboard/metrics.service', () => ({
+        getDashboardMetrics: jest.fn().mockResolvedValue({
+          reproductiveStats: { activePregnancies: 5 }
+        })
+      }));
+
+      const filters = { dateFrom: '2024-01-01', dateTo: '2024-12-31' };
       
-      await reproductionCache.setCompatibility(1, 2, compatibilityData);
-      const result = await reproductionCache.getCompatibility(1, 2);
-      
-      expect(result).toEqual(compatibilityData);
+      // First call should fetch from service
+      const result1 = await dashboardCache.getDashboardMetrics(filters);
+      expect(result1).toHaveProperty('reproductiveStats');
+
+      // Second call should return cached result
+      const result2 = await dashboardCache.getDashboardMetrics(filters);
+      expect(result2).toEqual(result1);
     });
 
-    it('should invalidate specific cache categories', async () => {
-      await reproductionCache.setStatistics('stats1', { data: 1 });
-      await reproductionCache.setAnimalList('animals1', { data: 2 });
-      
-      await reproductionCache.invalidateStatistics();
-      
-      expect(await reproductionCache.getStatistics('stats1')).toBeNull();
-      expect(await reproductionCache.getAnimalList('animals1')).toEqual({ data: 2 });
-    });
+    it('should invalidate dashboard cache', () => {
+      dashboardCache.set('dashboard:test', { data: 'test' });
+      expect(dashboardCache.has('dashboard:test')).toBe(true);
 
-    it('should invalidate all reproduction cache', async () => {
-      await reproductionCache.setStatistics('stats1', { data: 1 });
-      await reproductionCache.setAnimalList('animals1', { data: 2 });
-      await reproductionCache.setCompatibility(1, 2, { data: 3 });
-      
-      await reproductionCache.invalidateAll();
-      
-      expect(await reproductionCache.getStatistics('stats1')).toBeNull();
-      expect(await reproductionCache.getAnimalList('animals1')).toBeNull();
-      expect(await reproductionCache.getCompatibility(1, 2)).toBeNull();
+      dashboardCache.invalidateDashboardCache();
+      expect(dashboardCache.has('dashboard:test')).toBe(false);
     });
   });
 
-  describe('Cache Performance', () => {
-    it('should handle large number of cache operations efficiently', async () => {
-      const startTime = Date.now();
+  describe('Cache Key Generation', () => {
+    it('should generate consistent cache keys', () => {
+      const key1 = getCacheKey('prefix', 'part1', 'part2', { filter: 'value' });
+      const key2 = getCacheKey('prefix', 'part1', 'part2', { filter: 'value' });
       
-      // Set 1000 items
-      const setPromises = [];
-      for (let i = 0; i < 1000; i++) {
-        setPromises.push(cacheService.set(`key-${i}`, { id: i, data: `data-${i}` }));
-      }
-      await Promise.all(setPromises);
-      
-      // Get 1000 items
-      const getPromises = [];
-      for (let i = 0; i < 1000; i++) {
-        getPromises.push(cacheService.get(`key-${i}`));
-      }
-      const results = await Promise.all(getPromises);
-      
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      
-      // Should complete within reasonable time (adjust threshold as needed)
-      expect(duration).toBeLessThan(1000); // 1 second
-      expect(results).toHaveLength(1000);
-      expect(results[0]).toEqual({ id: 0, data: 'data-0' });
+      expect(key1).toBe(key2);
+      expect(key1).toContain('prefix');
+      expect(key1).toContain('part1');
+      expect(key1).toContain('part2');
     });
 
-    it('should respect cache size limits', async () => {
-      // This test would need a cache instance with a small maxSize
-      // For now, we'll just verify the concept works
-      const smallCache = new (require('../services/cache.service').default)({
-        maxSize: 3,
-        defaultTTL: 60000
-      });
+    it('should handle different data types in keys', () => {
+      const key = getCacheKey('test', 123, 'true', { nested: { value: 'test' } });
       
-      await smallCache.set('key1', { data: 1 });
-      await smallCache.set('key2', { data: 2 });
-      await smallCache.set('key3', { data: 3 });
-      await smallCache.set('key4', { data: 4 }); // Should evict oldest
-      
-      const stats = smallCache.getStats();
-      expect(stats.totalItems).toBeLessThanOrEqual(3);
-      
-      smallCache.destroy();
+      expect(typeof key).toBe('string');
+      expect(key).toContain('test');
+      expect(key).toContain('123');
+      expect(key).toContain('true');
     });
+  });
+
+  describe('Global Cache Operations', () => {
+    it('should invalidate all caches', () => {
+      mainCache.set('main:test', 'value');
+      dashboardCache.set('dashboard:test', 'value');
+
+      expect(mainCache.has('main:test')).toBe(true);
+      expect(dashboardCache.has('dashboard:test')).toBe(true);
+
+      invalidateAllCaches();
+
+      expect(mainCache.has('main:test')).toBe(false);
+      expect(dashboardCache.has('dashboard:test')).toBe(false);
+    });
+  });
+});
+
+describe('Cache Performance', () => {
+  let cacheService: CacheService;
+
+  beforeEach(() => {
+    cacheService = new CacheService();
+  });
+
+  afterEach(() => {
+    cacheService.flushAll();
+  });
+
+  it('should handle large number of keys efficiently', () => {
+    const startTime = Date.now();
+    const keyCount = 1000;
+
+    // Set many keys
+    for (let i = 0; i < keyCount; i++) {
+      cacheService.set(`key${i}`, { data: `value${i}`, index: i });
+    }
+
+    // Get many keys
+    for (let i = 0; i < keyCount; i++) {
+      const value = cacheService.get(`key${i}`);
+      expect(value).toEqual({ data: `value${i}`, index: i });
+    }
+
+    const endTime = Date.now();
+    const executionTime = endTime - startTime;
+
+    // Should complete within reasonable time (adjust threshold as needed)
+    expect(executionTime).toBeLessThan(1000); // 1 second
+  });
+
+  it('should maintain performance with frequent access', () => {
+    const key = 'performance-test';
+    const value = { data: 'performance-value' };
+    
+    cacheService.set(key, value);
+
+    const startTime = Date.now();
+    const accessCount = 10000;
+
+    // Access the same key many times
+    for (let i = 0; i < accessCount; i++) {
+      const result = cacheService.get(key);
+      expect(result).toEqual(value);
+    }
+
+    const endTime = Date.now();
+    const executionTime = endTime - startTime;
+
+    // Should handle frequent access efficiently
+    expect(executionTime).toBeLessThan(100); // 100ms for 10k accesses
   });
 });

@@ -20,12 +20,12 @@ export const EstadisticasDialog: React.FC<EstadisticasDialogProps> = ({ open, on
       setError(null);
       api.get(`/cuyes/${cuy.id}/estadisticas`)
         .then(res => {
-          setEstadisticas(res.data.data);
+          setEstadisticas((res.data as any).data);
         })
         .catch(() => {
           setError('No se pudieron obtener las estadísticas');
         })
-        .finally(() => setLoading(false));
+        .then(() => setLoading(false));
     } else {
       setEstadisticas(null);
     }
@@ -322,7 +322,7 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
               <Box sx={{ textAlign: 'right' }}>
                 <Chip 
                   label={getPerformanceLabel(tasaExito)}
-                  color={getPerformanceColor(tasaExito) as unknown}
+                  color={getPerformanceColor(tasaExito)}
                   size="small"
                 />
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -363,7 +363,7 @@ const ReproductorSelectionDialog: React.FC<ReproductorSelectionDialogProps> = ({
               <LinearProgress 
                 variant="determinate" 
                 value={tasaExito} 
-                color={getPerformanceColor(tasaExito) as unknown}
+                color={getPerformanceColor(tasaExito) === 'success' ? 'success' : getPerformanceColor(tasaExito) === 'warning' ? 'warning' : 'error'}
                 sx={{ height: 8, borderRadius: 4 }}
               />
             </Box>

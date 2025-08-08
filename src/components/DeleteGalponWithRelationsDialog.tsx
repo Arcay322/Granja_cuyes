@@ -27,6 +27,7 @@ import {
   Pets
 } from '@mui/icons-material';
 import api from '../services/api';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface RelacionGalpon {
   tipo: string;
@@ -87,7 +88,7 @@ const DeleteGalponWithRelationsDialog: React.FC<DeleteGalponWithRelationsDialogP
     try {
       const response = await api.get(`/galpones/${galponId}/verificar-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         setVerificacion(response.data.data);
       } else {
         console.error('Error al verificar relaciones del galpón');
@@ -106,7 +107,7 @@ const DeleteGalponWithRelationsDialog: React.FC<DeleteGalponWithRelationsDialogP
     try {
       const response = await api.delete(`/galpones/${galponId}/eliminar-con-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         onDeleteConfirmed(galponId);
         onClose();
       } else {

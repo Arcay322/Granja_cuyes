@@ -18,6 +18,8 @@ import CompatibilidadReproductiva from './CompatibilidadReproductiva';
 import EstadisticasReproduccionWidget from './EstadisticasReproduccionWidget';
 import RecomendacionesReproductivasWidget from './RecomendacionesReproductivasWidget';
 import AlertasReproduccionWidget from './AlertasReproduccionWidget';
+import ReproductionErrorWrapper from './common/ReproductionErrorWrapper';
+import { useReproductionErrorHandler } from '../hooks/useReproductionErrorHandler';
 
 // Improved auxiliary component with proper types
 interface CuyStats {
@@ -43,7 +45,7 @@ function EstadisticasCuyDialog({ open, onClose, cuyId, tipo }: EstadisticasCuyDi
     if (open && cuyId) {
       setLoading(true);
       Promise.resolve(api.get(`/cuyes/${cuyId}/estadisticas`))
-        .then(res => setStats(res.data))
+        .then(res => setStats(res.data as any))
         .catch(() => setStats(null))
         .finally(() => setLoading(false));
     }
@@ -332,7 +334,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
     } else {
       // Validar que la madre no esté ya preñada
       const madreOcupada = preneces.some(
-        p => p.madreId?.toString() === prenezFormData.madreId && p.estado !== 'Finalizada'
+        p => p.madreId?.toString() === prenezFormData.madreId && p.estado !== 'completada'
       );
       if (madreOcupada) {
         errors.madreId = 'La madre seleccionada ya está preñada';
@@ -420,8 +422,8 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
         let jaulaExiste = true;
         try {
           const res = await api.get(`/jaulas/${madre.galpon}/${madre.jaula}`);
-          cuyesEnJaula = Number(res.data?.totalCuyes) || 0;
-          capacidad = Number(res.data?.capacidad) || 10;
+          cuyesEnJaula = Number((res.data as any)?.totalCuyes) || 0;
+          capacidad = Number((res.data as any)?.capacidad) || 10;
         } catch (err: any) {
           if (err?.response?.status === 404) {
             jaulaExiste = false;
@@ -439,7 +441,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
           // Buscar jaulas disponibles en el galpón
           try {
             const resJaulas = await api.get(`/galpones/${madre.galpon}/jaulas-disponibles`, { params: { minEspacio: numVivos + 1 } });
-            setJaulasDisponibles(resJaulas.data?.data || []);
+            setJaulasDisponibles((resJaulas.data as any)?.data || []);
           } catch {}
           setShowTrasladoDialog(true);
           setFormLoading(false);
@@ -451,7 +453,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
           toastService.error('Error', 'La jaula de la madre ya está llena o sobrepasada. Traslade antes de registrar la camada.');
           try {
             const resJaulas = await api.get(`/galpones/${madre.galpon}/jaulas-disponibles`, { params: { minEspacio: numVivos + 1 } });
-            setJaulasDisponibles(resJaulas.data?.data || []);
+            setJaulasDisponibles((resJaulas.data as any)?.data || []);
           } catch {}
           setShowTrasladoDialog(true);
           setFormLoading(false);
@@ -533,8 +535,8 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
         ? '/reproduccion/prenez/madres-disponibles'
         : '/reproduccion/prenez/padres-disponibles';
       const response = await api.get(endpoint);
-      if (response.data.success) {
-        setAvailableReproductores(response.data.data || []);
+      if ((response.data as any).success) {
+        setAvailableReproductores((response.data as any).data || []);
       } else {
         await fetchAvailableCuyes();
         const filteredCuyes = availableCuyes.filter(cuy =>
@@ -556,11 +558,11 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
 
   const handleSelectReproductor = (reproductor: unknown) => {
     if (reproductorDialogType === 'madre') {
-      setPrenezFormData(prev => ({ ...prev, madreId: reproductor.id.toString() }));
-      setSelectedMadreId(reproductor.id);
+      setPrenezFormData(prev => ({ ...prev, madreId: (reproductor as any).id.toString() }));
+      setSelectedMadreId((reproductor as any).id);
     } else {
-      setPrenezFormData(prev => ({ ...prev, padreId: reproductor.id.toString() }));
-      setSelectedPadreId(reproductor.id);
+      setPrenezFormData(prev => ({ ...prev, padreId: (reproductor as any).id.toString() }));
+      setSelectedPadreId((reproductor as any).id);
     }
     setShowReproductorDialog(false);
   };
@@ -788,12 +790,13 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
   );
 
   return (
-    <Box>
-      {showTitle && (
-        <Typography variant="h4" gutterBottom>
-          Gestión de Reproducción Avanzada
-        </Typography>
-      )}
+    <ReproductionErrorWrapper context="Gestión de Reproducción">
+      <Box>
+        {showTitle && (
+          <Typography variant="h4" gutterBottom>
+            Gestión de Reproducción Avanzada
+          </Typography>
+        )}
 
       {/* Dashboard de widgets cuando showStats está habilitado */}
       {showStats && (
@@ -874,7 +877,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth error={!!prenezFormErrors.madreId} disabled={formLoading}>
                 <InputLabel>Madre</InputLabel>
                 <Select
@@ -891,7 +894,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                       if (cuy.sexo !== 'H' || cuy.proposito !== 'Reproducción') return false;
                       // Excluir madres ya preñadas (que tengan una preñez activa)
                       const madreOcupada = preneces.some(
-                        p => p.madreId === cuy.id && p.estado !== 'Finalizada'
+                        p => p.madreId === cuy.id && p.estado !== 'completada'
                       );
                       return !madreOcupada;
                     })
@@ -926,7 +929,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 </Box>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth disabled={formLoading}>
                 <InputLabel>Padre (Opcional)</InputLabel>
                 <Select
@@ -969,7 +972,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 </Box>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Fecha de Preñez"
@@ -983,7 +986,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
               />
             </Grid>
             {/* Botón para analizar compatibilidad */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                 <Button
                   variant="contained"
@@ -1000,7 +1003,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 </Button>
               </Box>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="Notas (Opcional)"
@@ -1039,7 +1042,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Fecha de Nacimiento"
@@ -1049,7 +1052,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Madre</InputLabel>
                 <Select
@@ -1070,7 +1073,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Padre (Opcional)</InputLabel>
                 <Select
@@ -1089,7 +1092,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Crías Vivas"
@@ -1099,7 +1102,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Crías Muertas"
@@ -1109,7 +1112,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Machos"
@@ -1119,7 +1122,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Hembras"
@@ -1130,7 +1133,7 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
               />
             </Grid>
             {jaulaOcupada && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Alert severity="warning">
                   No hay espacio suficiente en la jaula de la madre para la camada y las crías.<br />
                   Puede trasladar a la madre y sus crías a otra jaula disponible.
@@ -1218,7 +1221,8 @@ const ReproduccionManagerFixedClean: React.FC<ReproduccionManagerProps> = ({
         madreId={selectedMadreId}
         padreId={selectedPadreId}
       />
-    </Box>
+      </Box>
+    </ReproductionErrorWrapper>
   );
 };
 

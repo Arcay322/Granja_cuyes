@@ -65,7 +65,10 @@ import {
   AvailableReproductor,
   CompatibilityResult
 } from '../../types/reproduccion.types';
-import { reproductionCache } from '../cache.service';
+import { mainCache } from '../cache.service';
+import webSocketService from '../websocket/websocket.service';
+import { cacheInvalidation } from '../cache.service';
+import logger from '../../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -254,11 +257,25 @@ export const getById = async (id: number): Promise<Prenez | null> => {
   });
 };
 
-// Crear nueva preñez
+// Crear nueva preñez con notificaciones WebSocket
 export const create = async (data: Omit<Prenez, 'id'>): Promise<Prenez> => {
-  return prisma.prenez.create({
-    data
-  });
+  try {
+    const newPrenez = await prisma.prenez.create({
+      data
+    });
+
+    // Invalidar caché relacionado
+    cacheInvalidation.invalidateByDataChange('prenez', 'create');
+
+    // Notificar via WebSocket
+    webSocketService.notifyDataChange('prenez', 'created', newPrenez);
+
+    logger.info(`Nueva preñez creada: ${newPrenez.id}`);
+    return newPrenez;
+  } catch (error) {
+    logger.error('Error creando preñez:', error);
+    throw error;
+  }
 };
 
 // Actualizar preñez
@@ -324,11 +341,11 @@ export const getProximosPartos = async (diasProximidad: number): Promise<Prenez[
 export const getEstadisticasReproduccionOptimized = async (): Promise<ReproductionStatistics> => {
   try {
     // Check cache first
-    const cacheKey = 'general';
-    const cachedStats = await reproductionCache.getStatistics(cacheKey);
+    const cacheKey = 'reproduction:statistics:general';
+    const cachedStats = mainCache.get<ReproductionStatistics>(cacheKey);
     
     if (cachedStats) {
-      return cachedStats as ReproductionStatistics;
+      return cachedStats;
     }
 
     const now = new Date();
@@ -476,7 +493,7 @@ export const getEstadisticasReproduccionOptimized = async (): Promise<Reproducti
     };
 
     // Cache the results
-    await reproductionCache.setStatistics(cacheKey, statistics);
+    mainCache.set(cacheKey, statistics, 300); // 5 minutes TTL
     
     return statistics;
   } catch (error) {
@@ -489,13 +506,52 @@ export const getEstadisticasReproduccionOptimized = async (): Promise<Reproducti
 export const getEstadisticasReproduccion = async () => {
   const optimizedStats = await getEstadisticasReproduccionOptimized();
   
-  return {
-    resumen: optimizedStats.resumen,
-    promedios: {
-      criasPorCamada: optimizedStats.promedios.criasPorCamada,
-      vivosPorCamada: optimizedStats.promedios.vivosPorCamada,
-      tasaExito: optimizedStats.promedios.tasaExito
+  // Calcular próximos partos (próximos 15 días)
+  const fechaLimite = new Date();
+  fechaLimite.setDate(fechaLimite.getDate() + 15);
+  
+  const proximosPartos = await prisma.prenez.count({
+    where: {
+      estado: 'activa',
+      fechaProbableParto: {
+        lte: fechaLimite
+      }
     }
+  });
+
+  // Calcular promedio de gestación
+  const prenecesCompletadas = await prisma.prenez.findMany({
+    where: {
+      estado: 'completada',
+      fechaCompletada: { not: null }
+    },
+    select: {
+      fechaPrenez: true,
+      fechaCompletada: true
+    }
+  });
+
+  let promedioGestacion = 70; // Valor por defecto
+  if (prenecesCompletadas.length > 0) {
+    const totalDias = prenecesCompletadas.reduce((sum, p) => {
+      if (p.fechaCompletada) {
+        const dias = Math.floor((new Date(p.fechaCompletada).getTime() - new Date(p.fechaPrenez).getTime()) / (1000 * 60 * 60 * 24));
+        return sum + dias;
+      }
+      return sum;
+    }, 0);
+    promedioGestacion = Math.round(totalDias / prenecesCompletadas.length);
+  }
+
+  // Formato compatible con el widget
+  return {
+    totalPreneces: optimizedStats.resumen.totalPreneces,
+    prenecesActivas: optimizedStats.resumen.prenecesActivas,
+    prenecesCompletadas: optimizedStats.resumen.prenecesCompletadas,
+    prenecesExitosas: optimizedStats.resumen.prenecesCompletadas, // Asumiendo que completadas = exitosas
+    tasaExito: optimizedStats.promedios.tasaExito,
+    promedioGestacion,
+    proximosPartos
   };
 };
 
@@ -1272,8 +1328,10 @@ export const getRecomendacionesReproductivas = async (madreId?: number, padreId?
       }
 
       // Ordenar por score de compatibilidad y tomar las mejores
-      mejoresParejas.sort((a: any, b: any) => {
-        return b.compatibilidad.compatibilityScore - a.compatibilidad.compatibilityScore;
+      mejoresParejas.sort((a, b) => {
+        const aScore = (a as any).compatibilidad.compatibilityScore;
+        const bScore = (b as any).compatibilidad.compatibilityScore;
+        return bScore - aScore;
       });
       recomendaciones.push(...mejoresParejas.slice(0, 5));
     }

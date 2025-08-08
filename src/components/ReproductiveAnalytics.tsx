@@ -88,10 +88,10 @@ const ReproductiveAnalytics: React.FC<ReproductiveAnalyticsProps> = ({
       const madresResponse = await api.get('/reproduccion/prenez/madres-disponibles');
       const padresResponse = await api.get('/reproduccion/prenez/padres-disponibles');
       
-      if (statsResponse.data.success && madresResponse.data.success && padresResponse.data.success) {
-        const statsData = statsResponse.data.data;
-        const madresData = madresResponse.data.data;
-        const padresData = padresResponse.data.data;
+      if ((statsResponse.data as any).success && (madresResponse.data as any).success && (padresResponse.data as any).success) {
+        const statsData = (statsResponse.data as any).data;
+        const madresData = (madresResponse.data as any).data;
+        const padresData = (padresResponse.data as any).data;
         
         // Procesar datos para el componente
         const processedAnalytics: PerformanceMetrics = {

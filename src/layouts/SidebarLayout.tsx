@@ -7,7 +7,8 @@ import {
 import { 
   Dashboard, Pets, Restaurant, LocalHospital, PointOfSale, MoneyOff, Logout, 
   Menu as MenuIcon, ChevronLeft, AccountCircle, NotificationsOutlined, 
-  Search, HelpOutline, Settings, ExpandMore, KeyboardArrowRight, Warehouse
+  Search, HelpOutline, Settings, ExpandMore, KeyboardArrowRight, Warehouse,
+  Notifications, CalendarToday, Assessment
 } from '@mui/icons-material';
 import { Link, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import NotificationBell from '../components/NotificationBell';

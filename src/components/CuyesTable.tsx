@@ -208,18 +208,18 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
     api.get(url)
       .then(res => {
         console.log('🔍 Datos recibidos del backend:', res.data);
-        console.log('🔍 Total de cuyes:', res.data.length);
+        console.log('🔍 Total de cuyes:', (res.data as Cuy[]).length);
         if (filtroGalpon || filtroJaula) {
           console.log(`🔍 Filtros aplicados: Galpón=${filtroGalpon}, Jaula=${filtroJaula}`);
         }
-        console.log('🔍 Primeros 3 cuyes con ubicación:', res.data.slice(0, 3).map(c => ({
+        console.log('🔍 Primeros 3 cuyes con ubicación:', (res.data as Cuy[]).slice(0, 3).map((c: Cuy) => ({
           id: c.id,
           galpon: c.galpon,
           jaula: c.jaula,
           raza: c.raza
         })));
-        setCuyes(res.data);
-        setFilteredCuyes(res.data);
+        setCuyes(res.data as Cuy[]);
+        setFilteredCuyes(res.data as Cuy[]);
         setLoading(false);
       })
       .catch(err => {
@@ -230,8 +230,8 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
         if (filtroGalpon || filtroJaula) {
           api.get('/cuyes')
             .then(allRes => {
-              console.log('🔍 Total de cuyes antes del filtrado local:', allRes.data.length);
-              let filtered = allRes.data;
+              console.log('🔍 Total de cuyes antes del filtrado local:', ((allRes.data as any).data as Cuy[]).length);
+              let filtered = (allRes.data as any).data as Cuy[];
               
               if (filtroGalpon) {
                 filtered = filtered.filter((cuy: Cuy) => cuy.galpon === filtroGalpon);
@@ -242,15 +242,15 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
                 console.log(`🔍 Después de filtrar por jaula "${filtroJaula}":`, filtered.length);
               }
               
-              console.log('🔍 Cuyes filtrados localmente:', filtered.map(c => ({
+              console.log('🔍 Cuyes filtrados localmente:', (filtered as Cuy[]).map((c: Cuy) => ({
                 id: c.id,
                 galpon: c.galpon,
                 jaula: c.jaula,
                 raza: c.raza
               })));
               
-              setCuyes(filtered);
-              setFilteredCuyes(filtered);
+              setCuyes(filtered as Cuy[]);
+              setFilteredCuyes(filtered as Cuy[]);
               setLoading(false);
             })
             .catch(() => {
@@ -376,7 +376,7 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
     }
 
     // Ordenamiento
-    filtered = stableSort(filtered, getComparator(order, orderBy));
+    filtered = stableSort(filtered as any, getComparator(order, orderBy) as any);
 
     setFilteredCuyes(filtered);
   };
@@ -539,7 +539,9 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
       peso: '',
       galpon: '',
       jaula: '',
-      estado: ''
+      estado: '',
+      etapaVida: '',
+      proposito: ''
     });
     setOpen(true);
   };
@@ -561,22 +563,39 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
       peso: '',
       galpon: '',
       jaula: '',
-      estado: ''
+      estado: '',
+      etapaVida: '',
+      proposito: ''
     });
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     if (name) {
       // Para campos numéricos, permitir valor vacío temporalmente
       if (name === 'peso') {
         // Si el valor está vacío, mantenerlo como string vacío
         // Si tiene valor, convertir a número
-        const numericValue = value === '' ? '' : Number(value);
+        const numericValue = value === '' ? 0 : Number(value);
         setForm({ ...form, [name]: numericValue });
       } else {
         setForm({ ...form, [name]: value });
       }
+      
+      // Limpiar error del campo
+      if (errors[name as keyof typeof errors]) {
+        setErrors(prev => ({
+          ...prev,
+          [name]: ''
+        }));
+      }
+    }
+  };
+
+  const handleSelectChange = (e: any) => {
+    const { name, value } = e.target;
+    if (name) {
+      setForm({ ...form, [name]: value });
       
       // Limpiar error del campo
       if (errors[name as keyof typeof errors]) {
@@ -906,7 +925,7 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
                             <Chip 
                               label={etapa} 
                               size="small" 
-                              color={getEtapaColor(etapa) as any}
+                              color={getEtapaColor(etapa || 'Cria') as any}
                               variant="outlined"
                             />
                           </Box>
@@ -930,7 +949,7 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
                             <Chip 
                               label={proposito} 
                               size="small" 
-                              color={getPropositoColor(proposito) as any}
+                              color={getPropositoColor(proposito || 'Indefinido') as any}
                               variant="outlined"
                             />
                           </Box>
@@ -1446,7 +1465,7 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
                   name="sexo"
                   value={form.sexo}
                   label="Sexo"
-                  onChange={handleChange}
+                  onChange={handleSelectChange}
                   startAdornment={
                     <InputAdornment position="start">
                       <Wc fontSize="small" />
@@ -1533,7 +1552,7 @@ const CuyesTable: React.FC<CuyesTableProps> = ({
                   name="estado"
                   value={form.estado}
                   label="Estado"
-                  onChange={handleChange}
+                  onChange={handleSelectChange}
                   startAdornment={
                     <InputAdornment position="start">
                       <HealthAndSafety fontSize="small" />

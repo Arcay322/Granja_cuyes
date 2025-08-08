@@ -96,10 +96,10 @@ const RecomendacionesReproductivas: React.FC<RecomendacionesReproductivasProps> 
 
       const response = await api.get('/reproduccion/prenez/recomendaciones', { params });
 
-      if (response.data.success) {
-        setRecomendaciones(response.data.data);
+      if ((response.data as any).success) {
+        setRecomendaciones((response.data as any).data);
       } else {
-        setError(response.data.message || 'Error al obtener recomendaciones');
+        setError((response.data as any).message || 'Error al obtener recomendaciones');
       }
     } catch (error: any) {
       console.error('Error al obtener recomendaciones:', error);

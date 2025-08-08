@@ -9,7 +9,7 @@ import {
   Visibility, VisibilityOff, Email, Lock,
   LoginOutlined, ArrowForward
 } from '@mui/icons-material';
-import axios from '../services/api';
+import api from '../services/api';
 import cuyLogo from '../assets/cuy-logo.png';
 
 const LoginPage: React.FC = () => {
@@ -41,7 +41,7 @@ const LoginPage: React.FC = () => {
       sessionStorage.removeItem('token');
       
       // Hacer la solicitud de login
-      const res = await axios.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', { email, password });
       
       // Guardar el token según la preferencia del usuario
       const token = (res.data as any).token;

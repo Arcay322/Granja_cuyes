@@ -8,7 +8,7 @@ import {
   Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton,
   Box, Tooltip, MenuItem, Select, FormControl, InputLabel, Chip, Divider, Alert,
   useTheme, alpha, CircularProgress, TablePagination, Grid, FormHelperText,
-  Checkbox, Toolbar, Slide, Fab
+  Checkbox, Toolbar, Slide, Fab, SelectChangeEvent
 } from '../utils/mui';
 import { 
   Add, Edit, Delete, ShoppingCart, Close, Save, AttachMoney, 
@@ -18,6 +18,8 @@ import {
 } from '@mui/icons-material';
 import { InputAdornment } from '../utils/mui';
 import CuySelector from './CuySelector';
+import { MuiColor } from '../types/api';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface Cliente {
   id: number;
@@ -156,7 +158,9 @@ const VentasTable = () => {
     setLoading(true);
     try {
       const response = await api.get('/ventas');
-      setVentas(response.data);
+      if (isSuccessfulApiResponse<Venta[]>(response.data)) {
+        setVentas(response.data.data);
+      }
     } catch (error) {
       console.error('Error al obtener ventas:', error);
       toastService.error(
@@ -171,7 +175,9 @@ const VentasTable = () => {
   const fetchClientes = async () => {
     try {
       const response = await api.get('/clientes');
-      setClientes(response.data);
+      if (isSuccessfulApiResponse<Cliente[]>(response.data)) {
+        setClientes(response.data.data);
+      }
     } catch (error) {
       console.error('Error al obtener clientes:', error);
     }
@@ -243,7 +249,9 @@ const VentasTable = () => {
       await fetchClientes();
       
       // Seleccionar automáticamente el nuevo cliente
-      setForm(prev => ({ ...prev, clienteId: response.data.id }));
+      if (isSuccessfulApiResponse<Cliente>(response.data)) {
+        setForm(prev => ({ ...prev, clienteId: (response.data as any).data.id }));
+      }
       
       // Limpiar el formulario de nuevo cliente
       setNewClientForm({
@@ -262,7 +270,7 @@ const VentasTable = () => {
       
       toastService.success(
         'Cliente Agregado',
-        `Cliente "${response.data.nombre}" agregado exitosamente`
+        `Cliente "${(response.data as any).data.nombre}" agregado exitosamente`
       );
       
     } catch (error: any) {
@@ -332,16 +340,31 @@ const VentasTable = () => {
     setForm(prev => ({ ...prev, total }));
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (name) {
       // Para campos numéricos, permitir valor vacío temporalmente
       if (name === 'total') {
-        const numericValue = value === '' ? '' : Number(value);
+        const numericValue = value === '' ? 0 : Number(value);
         setForm(prev => ({ ...prev, [name]: numericValue }));
       } else {
         setForm(prev => ({ ...prev, [name]: value }));
       }
+      
+      // Limpiar error del campo
+      if (formErrors[name as keyof typeof formErrors]) {
+        setFormErrors(prev => ({
+          ...prev,
+          [name]: ''
+        }));
+      }
+    }
+  };
+
+  const handleSelectChange = (e: SelectChangeEvent<number | string>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setForm(prev => ({ ...prev, [name]: value }));
       
       // Limpiar error del campo
       if (formErrors[name as keyof typeof formErrors]) {
@@ -443,6 +466,10 @@ const VentasTable = () => {
 
   const isSelected = (id: number) => selectedIds.indexOf(id) !== -1;
 
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>, id: number) => {
+    handleClick(event as any, id);
+  };
+
   // Funciones para acciones en lote
   const handleBulkDelete = async () => {
     setBulkActionLoading(true);
@@ -455,7 +482,7 @@ const VentasTable = () => {
       setSelectedIds([]);
       setShowBulkActions(false);
       fetchVentas();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al eliminar ventas:', err);
       toastService.error(
         'Error al Eliminar',
@@ -481,7 +508,7 @@ const VentasTable = () => {
       setSelectedIds([]);
       setShowBulkActions(false);
       fetchVentas();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al cambiar estado:', err);
       toastService.error(
         'Error al Cambiar Estado',
@@ -501,7 +528,7 @@ const VentasTable = () => {
     setPage(0);
   };
 
-  const getEstadoColor = (estadoPago: string) => {
+  const getEstadoColor = (estadoPago: string): MuiColor => {
     switch (estadoPago) {
       case 'Pagado':
         return 'success';
@@ -639,7 +666,7 @@ const VentasTable = () => {
                         <Checkbox
                           color="primary"
                           checked={isSelected}
-                          onChange={(event) => handleClick(event, venta.id!)}
+                          onChange={(event) => handleCheckboxChange(event, venta.id!)}
                           inputProps={{ 'aria-label': `Seleccionar venta ${venta.id}` }}
                         />
                       </TableCell>
@@ -672,7 +699,7 @@ const VentasTable = () => {
                       <TableCell>
                         <Chip
                           label={venta.estadoPago}
-                          color={getEstadoColor(venta.estadoPago) as unknown}
+                          color={getEstadoColor(venta.estadoPago)}
                           size="small"
                         />
                       </TableCell>
@@ -741,7 +768,7 @@ const VentasTable = () => {
                   <Select
                     name="clienteId"
                     value={form.clienteId}
-                    onChange={handleChange}
+                    onChange={handleSelectChange}
                     label="Cliente *"
                     required
                   >
@@ -833,7 +860,7 @@ const VentasTable = () => {
                 <Select
                   name="estadoPago"
                   value={form.estadoPago}
-                  onChange={handleChange}
+                  onChange={handleSelectChange}
                   label="Estado de Pago"
                   required
                 >
@@ -859,7 +886,7 @@ const VentasTable = () => {
               <Grid size={{ xs: 12 }}>
                 <Divider sx={{ my: 2 }} />
                 <CuySelector
-                  selectedCuyes={selectedCuyes}
+                  selectedCuyes={selectedCuyes as any}
                   onCuyesChange={handleCuyesChange}
                   onTotalChange={handleTotalChange}
                 />

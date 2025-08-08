@@ -13,10 +13,13 @@ import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
+import { createServer } from 'http';
 // Importar rutas de todos los módulos
 import alimentosRoutes from './routes/alimentacion/alimentos.routes';
 import consumoRoutes from './routes/alimentacion/consumo.routes';
+import alertsRoutes from './routes/alerts/alerts.routes';
 import authRoutes from './routes/auth.routes';
+import calendarRoutes from './routes/calendar/calendar.routes';
 import clientesRoutes from './routes/clientes/clientes.routes';
 import dashboardRoutes from './routes/dashboard/dashboard.routes';
 import debugRoutes from './routes/debug.routes';
@@ -28,12 +31,17 @@ import galponesRoutes from './routes/inventario/galpones.routes';
 import proveedoresRoutes from './routes/inventario/proveedores.routes';
 import camadasRoutes from './routes/reproduccion/camadas.routes';
 import prenezRoutes from './routes/reproduccion/prenez.routes';
+import reportsRoutes from './routes/reports/reports.routes';
 import saludRoutes from './routes/salud/salud.routes';
 import ventasRoutes from './routes/ventas/ventas.routes';
 // Importar middleware
 import { errorHandler } from './middlewares/errorHandler';
 import logger from './utils/logger';
 import { swaggerUi, swaggerSpec } from './utils/swagger';
+// Importar programador de alertas
+import { startAlertsScheduler } from './jobs/alertsScheduler.job';
+// Importar servicio WebSocket
+import webSocketService from './services/websocket/websocket.service';
 
 dotenv.config();
 
@@ -159,8 +167,11 @@ app.use('/api/ventas', ventasRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/gastos', gastosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/alerts', alertsRoutes);
+app.use('/api/calendar', calendarRoutes);
 app.use('/api/reproduccion/camadas', camadasRoutes);
 app.use('/api/reproduccion/prenez', prenezRoutes);
+app.use('/api/reports', reportsRoutes);
 app.use('/api/galpones', galponesRoutes);
 app.use('/api/etapas', etapasRoutes);
 app.use('/api/debug', debugRoutes);
@@ -183,10 +194,24 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
-console.log('===> Llamando a app.listen...');
-app.listen(PORT, () => {
-  console.log(`Servidor backend escuchando en puerto ${PORT}`);
-});
-console.log('===> app.listen ejecutado');
 
-export { app };
+// Crear servidor HTTP
+const server = createServer(app);
+
+// Inicializar WebSocket
+webSocketService.initialize(server);
+
+console.log('===> Llamando a server.listen...');
+server.listen(PORT, () => {
+  console.log(`Servidor backend escuchando en puerto ${PORT}`);
+  console.log('🔌 WebSocket habilitado');
+  
+  // Inicializar programador de alertas después de que el servidor esté listo
+  setTimeout(() => {
+    console.log('🚀 Iniciando sistema de alertas...');
+    startAlertsScheduler();
+  }, 2000); // Esperar 2 segundos para asegurar que todo esté inicializado
+});
+console.log('===> server.listen ejecutado');
+
+export { app, server };

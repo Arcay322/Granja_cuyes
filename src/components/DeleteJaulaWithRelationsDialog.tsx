@@ -27,6 +27,7 @@ import {
   Pets
 } from '@mui/icons-material';
 import api from '../services/api';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface RelacionJaula {
   tipo: string;
@@ -88,7 +89,7 @@ const DeleteJaulaWithRelationsDialog: React.FC<DeleteJaulaWithRelationsDialogPro
     try {
       const response = await api.get(`/galpones/jaulas/${jaulaId}/verificar-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         setVerificacion(response.data.data);
       } else {
         console.error('Error al verificar relaciones de la jaula');
@@ -107,7 +108,7 @@ const DeleteJaulaWithRelationsDialog: React.FC<DeleteJaulaWithRelationsDialogPro
     try {
       const response = await api.delete(`/galpones/jaulas/${jaulaId}/eliminar-con-relaciones`);
 
-      if (response.data.success) {
+      if (isSuccessfulApiResponse<any>(response.data)) {
         onDeleteConfirmed(jaulaId);
         onClose();
       } else {

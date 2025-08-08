@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import toastService from '../services/toastService';
+import { isSuccessfulApiResponse } from '../utils/typeGuards';
 
 interface EtapaStats {
   etapa: string;
@@ -85,8 +86,12 @@ const EtapasManagementWidget: React.FC = () => {
         api.get('/etapas/proximas')
       ]);
       
-      setStats(statsRes.data);
-      setProximasTransiciones(proximasRes.data);
+      if (isSuccessfulApiResponse<EtapaStats[]>(statsRes.data)) {
+        setStats(statsRes.data.data);
+      }
+      if (isSuccessfulApiResponse<ProximaTransicion[]>(proximasRes.data)) {
+        setProximasTransiciones(proximasRes.data.data);
+      }
     } catch (error) {
       console.error('Error al cargar datos de etapas:', error);
       toastService.error('Error', 'No se pudieron cargar los datos de etapas');
@@ -99,11 +104,13 @@ const EtapasManagementWidget: React.FC = () => {
     try {
       setEvaluating(true);
       const response = await api.get('/etapas/evaluar');
-      setTransicionesSugeridas(response.data.transiciones);
-      toastService.success(
-        'Evaluación Completada', 
-        `${response.data.transicionesSugeridas} transiciones sugeridas`
-      );
+      if (isSuccessfulApiResponse<any>(response.data)) {
+        setTransicionesSugeridas(response.data.data.transiciones);
+        toastService.success(
+          'Evaluación Completada', 
+          `${response.data.data.transicionesSugeridas} transiciones sugeridas`
+        );
+      }
     } catch (error) {
       console.error('Error al evaluar transiciones:', error);
       toastService.error('Error', 'No se pudo completar la evaluación');

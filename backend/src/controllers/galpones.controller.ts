@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import prisma from '../utils/prisma';
+import { prisma } from '../utils/prisma';
 
 // Obtener todos los galpones con resumen
 export const getGalpones = async (req: Request, res: Response) => {

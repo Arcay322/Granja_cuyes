@@ -41,10 +41,10 @@ const LoginPage: React.FC = () => {
       sessionStorage.removeItem('token');
       
       // Hacer la solicitud de login
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post<{ token: string }>('/auth/login', { email, password });
       
       // Guardar el token según la preferencia del usuario
-      const token = (res.data as any).token;
+      const token = res.data.token;
       if (rememberMe) {
         localStorage.setItem('token', token);
       } else {
@@ -58,9 +58,10 @@ const LoginPage: React.FC = () => {
       
       // Redirigir a la página principal
       navigate('/');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error de login:', err);
-      setError(err.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.');
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.');
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ const LoginPage: React.FC = () => {
     <Box 
       sx={{ 
         minHeight: '100vh',
-        background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.8)}, ${alpha(theme.palette.primary.main, 0.8)})`,
+        background: `linear-gradient(135deg, ${theme.palette.background.default}, ${alpha(theme.palette.primary.dark, 0.3)})`,
         display: 'flex',
         position: 'relative',
         '&::before': {
@@ -84,7 +85,7 @@ const LoginPage: React.FC = () => {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: 'url("data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z" fill="%23ffffff" fill-opacity="0.1" fill-rule="evenodd"/%3E%3C/svg%3E")',
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z" fill="%2361dafb" fill-opacity="0.05" fill-rule="evenodd"/%3E%3C/svg%3E")',
           opacity: 0.6,
           zIndex: 0,
         }
@@ -137,20 +138,19 @@ const LoginPage: React.FC = () => {
               <Typography 
                 variant="h2" 
                 sx={{ 
-                  color: 'white', 
+                  color: theme.palette.text.primary, 
                   fontWeight: 800, 
                   mb: 2,
-                  textShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                  textShadow: '0 2px 10px rgba(0,0,0,0.5)'
                 }}
               >
-                Granja de Cuyes
+                SUMAQ UYWA
               </Typography>
               <Typography 
                 variant="h5" 
                 sx={{ 
-                  color: 'white', 
+                  color: theme.palette.text.secondary, 
                   fontWeight: 400,
-                  opacity: 0.9,
                   maxWidth: 500,
                   mx: 'auto',
                   lineHeight: 1.5,
@@ -161,30 +161,30 @@ const LoginPage: React.FC = () => {
               </Typography>
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
                 <Box sx={{ 
-                  bgcolor: 'rgba(255,255,255,0.1)', 
+                  bgcolor: alpha(theme.palette.primary.main, 0.2), 
                   p: 2, 
                   borderRadius: 2,
                   backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.3)',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                   width: 160,
                   textAlign: 'center'
                 }}>
-                  <Typography variant="h4" color="white" fontWeight={700}>100%</Typography>
-                  <Typography variant="body2" sx={{ color: 'white', opacity: 0.8 }}>Gestión Eficiente</Typography>
+                  <Typography variant="h4" color={theme.palette.text.primary} fontWeight={700}>100%</Typography>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>Gestión Eficiente</Typography>
                 </Box>
                 <Box sx={{ 
-                  bgcolor: 'rgba(255,255,255,0.1)', 
+                  bgcolor: alpha(theme.palette.primary.main, 0.2), 
                   p: 2, 
                   borderRadius: 2,
                   backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.3)',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                   width: 160,
                   textAlign: 'center'
                 }}>
-                  <Typography variant="h4" color="white" fontWeight={700}>24/7</Typography>
-                  <Typography variant="body2" sx={{ color: 'white', opacity: 0.8 }}>Acceso Seguro</Typography>
+                  <Typography variant="h4" color={theme.palette.text.primary} fontWeight={700}>24/7</Typography>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>Acceso Seguro</Typography>
                 </Box>
               </Box>
             </Box>
@@ -229,10 +229,10 @@ const LoginPage: React.FC = () => {
                     sx={{ 
                       fontWeight: 700, 
                       textAlign: 'center',
-                      color: 'primary.main'
+                      color: theme.palette.primary.main
                     }}
                   >
-                    Granja de Cuyes
+                    SUMAQ UYWA
                   </Typography>
                 </Box>
 
@@ -277,6 +277,7 @@ const LoginPage: React.FC = () => {
                     fullWidth
                     required
                     variant="outlined"
+                    autoComplete="email"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -284,7 +285,17 @@ const LoginPage: React.FC = () => {
                         </InputAdornment>
                       ),
                     }}
-                    sx={{ mb: 3 }}
+                    sx={{ 
+                      mb: 3,
+                      '& .MuiInputBase-root': {
+                        backgroundColor: 'white',
+                      },
+                      '& .MuiInputBase-input:-webkit-autofill': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset !important',
+                        WebkitTextFillColor: '#000 !important',
+                        borderRadius: '4px',
+                      }
+                    }}
                   />
 
                   <TextField
@@ -295,6 +306,7 @@ const LoginPage: React.FC = () => {
                     fullWidth
                     required
                     variant="outlined"
+                    autoComplete="current-password"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -313,7 +325,17 @@ const LoginPage: React.FC = () => {
                         </InputAdornment>
                       ),
                     }}
-                    sx={{ mb: 2 }}
+                    sx={{ 
+                      mb: 2,
+                      '& .MuiInputBase-root': {
+                        backgroundColor: 'white',
+                      },
+                      '& .MuiInputBase-input:-webkit-autofill': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset !important',
+                        WebkitTextFillColor: '#000 !important',
+                        borderRadius: '4px',
+                      }
+                    }}
                   />
 
                   <Box 
@@ -426,12 +448,11 @@ const LoginPage: React.FC = () => {
           sx={{ 
             mt: { xs: 4, md: 8 }, 
             textAlign: 'center',
-            color: 'white',
-            opacity: 0.8
+            color: theme.palette.text.secondary
           }}
         >
           <Typography variant="body2">
-            © {new Date().getFullYear()} Granja de Cuyes. Todos los derechos reservados.
+            © {new Date().getFullYear()} SUMAQ UYWA. Todos los derechos reservados.
           </Typography>
         </Box>
       </Container>
